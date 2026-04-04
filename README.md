@@ -63,6 +63,7 @@ The `.env` file contains key environment variables used by west, CMake, and the 
 | `ZEPHYR_SDK_INSTALL_DIR` | Path to the Zephyr SDK installation | *(update to your path)* |
 | `BUILD_DIR` | Build output directory | `build` |
 | `CMAKE_GENERATOR` | CMake generator | `Ninja` |
+| `VIRTUAL_ENV` | Path to the Python virtual environment (ensures west and CMake use Python 3.12+) | `../.venv` |
 
 
 ```
