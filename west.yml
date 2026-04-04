@@ -6,7 +6,7 @@ manifest:
   projects:
     - name: zephyr
       remote: zephyrproject-rtos
-      revision: v4.0.0              # ← PINNED version!
+      revision: main              # ← PINNED version! make sure your sdk version matches 
       import: true                   # ← This pulls in all Zephyr's module deps
 
   self:

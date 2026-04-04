@@ -17,15 +17,16 @@ This project uses the **freestanding** layout. It contains its own west manifest
 ## Prerequisites
 
 - [Zephyr SDK](https://docs.zephyrproject.org/latest/develop/toolchains/zephyr_sdk.html) installed
-- Python 3.10+
+- Python 3.12+
 - CMake 3.20+
 - [west](https://docs.zephyrproject.org/latest/develop/west/index.html) meta-tool (`pip install west`)
 
 ## Getting Started
 
-### 1. Initialize the west workspace
+### 1. Initialize the west workspace,  
 
 From the directory **containing** this project folder, run:
+*Note:* this can take a while first time 
 
 ```bash
 west init -l zephyr_freestanding
@@ -63,34 +64,24 @@ The `.env` file contains key environment variables used by west, CMake, and the 
 | `BUILD_DIR` | Build output directory | `build` |
 | `CMAKE_GENERATOR` | CMake generator | `Ninja` |
 
-Load the environment before building:
 
-**Linux / macOS:**
-```bash
-set -a && source .env && set +a
-```
-
-**PowerShell:**
-```powershell
-Get-Content .env | ForEach-Object {
-    if ($_ -match '^\s*([^#][^=]+)=(.*)') {
-        [System.Environment]::SetEnvironmentVariable($Matches[1].Trim(), $Matches[2].Trim(), 'Process')
-    }
-}
 ```
 
 ## Building
 
 Build the application using west, specifying your target board:
+build from the zephyr_freestanding project so the .env file auto loads 
 
 ```bash
-west build -b <board> zephyr_freestanding
+cd zephyr_freestanding
+west build -b <board> 
 ```
 
 For example, to build for the Nucleo H753ZI:
 
 ```bash
-west build -b nucleo_h753zi zephyr_freestanding
+cd zephyr_freestanding
+west build -b nucleo_h753zi 
 ```
 
 To do a pristine rebuild:
@@ -117,3 +108,63 @@ zephyr_freestanding/
 └── src/
     └── main.c       # Application entry point
 ```
+
+## Recommended Workspace Layout
+
+Since the Zephyr workspace is large (kernel, HALs, modules, tools), you should **avoid duplicating it per project**. Instead, keep a single Zephyr workspace and place all your freestanding applications inside it:
+
+```
+zephyr-workspace/                   # One shared workspace root
+├── .west/                          # West workspace metadata
+├── zephyr/                         # Zephyr kernel (fetched by west)
+├── modules/                        # Zephyr modules (HALs, libs, etc.)
+│   ├── hal/
+│   ├── lib/
+│   └── ...
+├── tools/                          # Zephyr tools
+│
+├── app_blinky/                     # Freestanding project A
+│   ├── CMakeLists.txt
+│   ├── prj.conf
+│   ├── west.yml
+│   └── src/
+│       └── main.c
+│
+├── app_sensor/                     # Freestanding project B
+│   ├── CMakeLists.txt
+│   ├── prj.conf
+│   ├── west.yml
+│   └── src/
+│       └── main.c
+│
+└── app_motor_ctrl/                 # Freestanding project C
+    ├── CMakeLists.txt
+    ├── prj.conf
+    ├── west.yml
+    └── src/
+        └── main.c
+```
+
+### Switching Between Projects
+
+Since `west init -l` sets the workspace manifest to one project at a time, you need to re-initialize when switching projects:
+
+```bash
+# Start working on app_blinky
+west init -l app_blinky
+west update
+
+# Later, switch to app_sensor
+west init -l app_sensor
+west update
+```
+
+> **Note:** If all projects pin the same Zephyr version and modules, `west update` after switching will be fast since the sources are already present. If projects use different versions, west will checkout the appropriate revisions.
+
+### When to Use This Layout
+
+| Scenario | Recommendation |
+|---|---|
+| All projects use the **same Zephyr version** and modules | Single workspace + multiple freestanding apps. Switching is fast. |
+| Projects need **different Zephyr versions** or modules | Single workspace still works, but `west update` may re-checkout sources. Consider separate workspaces if switching is frequent. |
+| Only **one project** | Single workspace with one freestanding app (this repo's default). |
