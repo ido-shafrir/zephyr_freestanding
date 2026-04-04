@@ -1,13 +1,7 @@
-/** \file main.c */
-
 #include <zephyr/kernel.h>
-
-#define SLEEP_TIME_MS 100U
+#include "sw_blinky.h"
 
 int main(void)
 {
-    while (1)
-    {
-        k_msleep(SLEEP_TIME_MS);
-    }
+	return sw_blinky();
 }

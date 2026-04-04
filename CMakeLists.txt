@@ -11,9 +11,9 @@ cmake_minimum_required(VERSION 3.20.0)
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 
 project(
-    EmptyApp
+    example_1
     VERSION 0.1
-    DESCRIPTION "Empty Zephyr application."
+    DESCRIPTION "A simple Zephyr application demonstrating a freestanding configuration."
     LANGUAGES C
 )
 
@@ -22,4 +22,6 @@ target_sources(
     app
     PRIVATE
     src/main.c
+    src/blinky.c
+    src/sw_blinky.c
 )
