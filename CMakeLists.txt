@@ -17,11 +17,18 @@ project(
     LANGUAGES C
 )
 
+target_include_directories(
+        app
+        PRIVATE
+        include
+)
+
+
 # The target "app" is defined in Zephyr's CMake package and is the default target for Zephyr apps.
 target_sources(
     app
     PRIVATE
     src/main.c
-    src/blinky.c
-    src/sw_blinky.c
+    src/blink_thread.c
+    src/switch_thread.c
 )

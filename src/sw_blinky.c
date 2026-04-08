@@ -6,7 +6,6 @@
 #include "sw_blinky.h"
 
 static volatile struct gpio_dt_spec blinking_led; /* global variable to hold the currently blinking LED */
-static volatile bool button_pressed_flag = false; /* flag to indicate button press, used for debouncing */
 static const struct gpio_dt_spec button0 = GPIO_DT_SPEC_GET(SWITCH0_NODE, gpios);
 
 /*
@@ -17,18 +16,27 @@ static const struct gpio_dt_spec button0 = GPIO_DT_SPEC_GET(SWITCH0_NODE, gpios)
  */
 static struct gpio_callback btn_cb_data;
 
+/* semaphore to signal button press,
+ * this is a signaling mechanism that allows the main loop to wait for a button press event without busy-waiting.
+*/
+K_SEM_DEFINE(btn_sem, 0, 1);
+
 /* callback function for button press interrupt  changes the blinking LED */
 void button_pressed(const struct device *dev, struct gpio_callback *cb, uint32_t pins){
-    printk("ISR: Button pressed! Toggling blinking LED.\n");
-
-    if (blinking_led.pin == led0.pin) {
-        blinking_led = led1;
-    } else {
-        blinking_led = led0;
-    }
-    button_pressed_flag = true;
+    k_sem_give(&btn_sem);
 }
 
+/* handler for button press events  flipping the blinking LED */
+void button_handler(void) {
+    printk("ISR: Button pressed! Toggling blinking LED.\n");
+    if (blinking_led.pin == led0.pin) {
+        blinking_led = led1;
+        gpio_pin_set_dt(&led0, 0) ; /* ensure the other LED is off */
+    } else {
+        blinking_led = led0;
+        gpio_pin_set_dt(&led1, 0); /* ensure the other LED is off */
+    }
+}
 
 
 int sw_blinky(void) {
@@ -65,16 +73,10 @@ int sw_blinky(void) {
     blinking_led = led0;
 
     while (1) {
-        struct gpio_dt_spec current_led = blinking_led; /* snapshot cause the compiler complains about volatile */
-        if (button_pressed_flag) {
-            if (blinking_led.pin == led0.pin) {
-                gpio_pin_set_dt(&led1, 0); /* ensure the other LED is off */
-            } else {
-                gpio_pin_set_dt(&led0, 0); /* ensure the other LED is off */
-            }
-            button_pressed_flag = false; /* reset the flag */
+        if ( k_sem_take(&btn_sem, K_NO_WAIT) == 0) {   /*check  if button was pressed */
+            button_handler(); /* handle the button press event */
         }
-
+        struct gpio_dt_spec current_led = blinking_led; /* snapshot cause the compiler complains about volatile */
         gpio_pin_toggle_dt(&current_led);    
         k_msleep(500); /* add a small delay to debounce the switch */    
     }
