@@ -1,10 +1,17 @@
 #include <zephyr/kernel.h>
 #include "blink_thread.h"
 #include "switch_thread.h"
+#include "state_machines.h"
 
+/* mutex to protect access to shared state variables 
+similar to python's threading.Lock, this ensures that only one thread can access the shared state variables at a time
+*/
+K_MUTEX_DEFINE(blink_led_mutex);  
+K_MUTEX_DEFINE(blink_enabled_mutex);  
+
+/* shared state variables */
 volatile bool blink_enabled = true;
-volatile struct gpio_dt_spec blinking_led; /* global variable to hold the currently blinking LED */
-
+volatile struct gpio_dt_spec blinking_led;
 
 int main(void)
 {

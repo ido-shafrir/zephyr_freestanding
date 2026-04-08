@@ -3,6 +3,7 @@
 #include <zephyr/drivers/gpio.h>
 #include "switch_thread.h"
 #include "blink_thread.h"
+#include "state_machines.h"
 
 static const struct gpio_dt_spec button0 = GPIO_DT_SPEC_GET(SWITCH0_NODE, gpios);
 
@@ -17,6 +18,7 @@ void button_pressed(const struct device *dev, struct gpio_callback *cb, uint32_t
 
 /* handler for button press events  flipping the blinking LED */
 void button_handler(void) {
+    k_mutex_lock(&blink_led_mutex, K_FOREVER); /* take lock */
     printk("ISR: Button pressed! Toggling blinking LED.\n");
     if (blinking_led.pin == led0.pin) {
         blinking_led = led1;
@@ -25,6 +27,7 @@ void button_handler(void) {
         blinking_led = led0;
         gpio_pin_set_dt(&led1, 0); /* ensure the other LED is off */
     }
+    k_mutex_unlock(&blink_led_mutex); /* release lock */
 }
 
 int init(void) {

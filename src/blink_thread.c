@@ -7,6 +7,7 @@ it is responsible for
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/gpio.h>
 #include "blink_thread.h"
+#include "state_machines.h"
 
 const struct gpio_dt_spec led0 = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
 const struct gpio_dt_spec led1 = GPIO_DT_SPEC_GET(LED1_NODE, gpios);
@@ -56,9 +57,16 @@ void blink_thread_entry(void *p1, void *p2, void *p3)
     }
 
     while (1) {
-        if (blink_enabled) {
-            struct gpio_dt_spec current_led = blinking_led;
-            gpio_pin_toggle_dt(&current_led);
+        k_mutex_lock(&blink_enabled_mutex, K_FOREVER); /* take lock */
+        bool local_blink_enaled = blink_enabled; /* read shared state variable into local variable */
+        k_mutex_unlock(&blink_enabled_mutex); /* release lock */
+
+        k_mutex_lock(&blink_led_mutex, K_FOREVER); /* take lock */
+        struct gpio_dt_spec local_blinking_led = blinking_led; /* read shared state variable into local variable */
+        k_mutex_unlock(&blink_led_mutex); /* release lock */
+
+        if (local_blink_enaled) {
+            gpio_pin_toggle_dt(&local_blinking_led);
         }
         k_msleep(500);
     }

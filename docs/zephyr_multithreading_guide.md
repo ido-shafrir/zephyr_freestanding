@@ -8,7 +8,7 @@ A guide to structuring Zephyr applications using one thread per module, with `ma
 ┌──────────────────────────────────────────────────────────┐
 │  main.c  (orchestrator)                                  │
 │                                                          │
-│  - Owns shared state (volatile globals)                  │
+│  - Defines shared state (volatile globals + mutex)       │
 │  - Creates all threads via k_thread_create()             │
 │  - Sets initial values, then sleeps (k_sleep(K_FOREVER)) │
 └──────────┬──────────────────────┬────────────────────────┘
@@ -22,7 +22,17 @@ A guide to structuring Zephyr applications using one thread per module, with `ma
 │  - Own init         │  │  - Own init         │
 │  - Own loop logic   │  │  - ISR + handler    │
 │  - Priority 3       │  │  - Priority 2       │
-└─────────────────────┘  └─────────────────────┘
+└─────────┬───────────┘  └──────────┬──────────┘
+          │                         │
+          ▼                         ▼
+   ┌─────────────────────────────────────────┐
+   │  state_machines.h                       │
+   │                                         │
+   │  - extern volatile shared state         │
+   │  - extern k_mutex (thread-safe access)  │
+   │  - Included by all modules that need    │
+   │    access to shared state               │
+   └─────────────────────────────────────────┘
 ```
 
 **Why this pattern?**
@@ -40,10 +50,11 @@ project/
 ├── CMakeLists.txt
 ├── prj.conf
 ├── include/
+│   ├── state_machines.h    # Shared state: extern volatile vars + extern mutex
 │   ├── blink_thread.h      # Thread A: API, stack/thread externs, config
 │   └── switch_thread.h     # Thread B: API, stack/thread externs, config
 └── src/
-    ├── main.c              # Orchestrator: shared state, thread creation
+    ├── main.c              # Orchestrator: defines shared state, mutex, thread creation
     ├── blink_thread.c      # Thread A: implementation
     └── switch_thread.c     # Thread B: implementation
 ```
@@ -293,53 +304,83 @@ When a higher-priority thread becomes runnable (e.g., semaphore given), it **pre
 
 ## Sharing State Between Threads
 
-### Option A: Volatile Globals (simple, for small data)
+Shared state must be accessed in a **thread-safe** manner. Use a mutex or message queue — both are kernel-provided and safe across threads.
 
+### Option A: Mutex + Volatile (for shared variables)
+
+The recommended pattern: declare shared state as `volatile` (prevents compiler optimization), protect access with a `k_mutex`, and snapshot into local variables.
+
+**state_machines.h** — declare shared state and mutex:
 ```c
-/* main.c — owns the state */
-static volatile bool blink_enabled = true;
+#ifndef STATE_MACHINES_H
+#define STATE_MACHINES_H
 
-/* blink_thread.h — declares extern */
+#include <stdbool.h>
+#include <zephyr/kernel.h>
+#include <zephyr/drivers/gpio.h>
+
+extern struct k_mutex state_mutex;
 extern volatile bool blink_enabled;
+extern volatile struct gpio_dt_spec blinking_led;
 
-/* blink_thread.c — reads it */
-if (blink_enabled) { ... }
-
-/* switch_thread.c — writes it */
-blink_enabled = false;
+#endif
 ```
 
-**Use when:** single-word reads/writes (bool, int, pointer) that are naturally atomic on ARM.
-
-### Option B: Mutex (for multi-field structs)
-
+**main.c** — define (own) the shared state and mutex:
 ```c
+#include "state_machines.h"
+
 K_MUTEX_DEFINE(state_mutex);
-
-struct app_state {
-    struct gpio_dt_spec active_led;
-    int blink_rate_ms;
-};
-static struct app_state state;
-
-/* Writer */
-k_mutex_lock(&state_mutex, K_FOREVER);
-state.active_led = led1;
-state.blink_rate_ms = 250;
-k_mutex_unlock(&state_mutex);
-
-/* Reader */
-k_mutex_lock(&state_mutex, K_FOREVER);
-struct app_state local = state;  /* snapshot */
-k_mutex_unlock(&state_mutex);
-gpio_pin_toggle_dt(&local.active_led);
+volatile bool blink_enabled = true;
+volatile struct gpio_dt_spec blinking_led;
 ```
 
-**Use when:** reading/writing multiple related fields that must be consistent.
+**Writer** (e.g., switch_thread.c) — lock, modify, unlock:
+```c
+#include "state_machines.h"
 
-### Option C: Message Queue (for event passing)
+void button_handler(void) {
+    k_mutex_lock(&state_mutex, K_FOREVER);
+    if (blinking_led.pin == led0.pin) {
+        blinking_led = led1;
+        gpio_pin_set_dt(&led0, 0);
+    } else {
+        blinking_led = led0;
+        gpio_pin_set_dt(&led1, 0);
+    }
+    k_mutex_unlock(&state_mutex);
+}
+```
+
+**Reader** (e.g., blink_thread.c) — lock, snapshot, unlock, use local copy:
+```c
+#include "state_machines.h"
+
+while (1) {
+    k_mutex_lock(&state_mutex, K_FOREVER);
+    bool local_enabled = blink_enabled;
+    struct gpio_dt_spec local_led = blinking_led;
+    k_mutex_unlock(&state_mutex);
+
+    if (local_enabled) {
+        gpio_pin_toggle_dt(&local_led);
+    }
+    k_msleep(500);
+}
+```
+
+**Why snapshot?** You hold the lock only for the copy, then release it immediately. The GPIO toggle (which takes real time) runs lock-free, so other threads aren't blocked.
+
+### Option B: Message Queue (for event/command passing)
+
+Use when threads communicate via discrete events rather than shared variables.
 
 ```c
+struct command {
+    uint8_t type;
+    struct gpio_dt_spec led;
+};
+
 K_MSGQ_DEFINE(cmd_queue, sizeof(struct command), 4, 4);
 
 /* Producer (button thread) */
@@ -353,14 +394,18 @@ if (k_msgq_get(&cmd_queue, &cmd, K_NO_WAIT) == 0) {
 }
 ```
 
-**Use when:** threads need to send discrete commands/events to each other.
+**Use when:** threads send discrete commands/events to each other, no shared mutable state needed.
 
-| Method          | Blocking? | Thread-safe? | Best for                    |
-|-----------------|-----------|-------------|------------------------------|
-| `volatile`      | No        | Atomic only | Single-word flags/values     |
-| `k_mutex`       | Yes       | Yes         | Multi-field shared structs   |
-| `k_msgq`        | Optional  | Yes         | Event/command passing        |
-| `k_sem`         | Optional  | Yes         | Signaling (ISR → thread)     |
+### Comparison Table
+
+| Method          | Thread-safe? | Blocking? | Best for                                 |
+|-----------------|-------------|-----------|------------------------------------------|
+| `k_mutex`       | Yes         | Yes       | Shared mutable state (variables, structs) |
+| `k_msgq`        | Yes         | Optional  | Event/command passing between threads     |
+| `k_sem`         | Yes         | Optional  | Signaling (ISR → thread)                  |
+| `volatile` alone| **No**      | No        | **Not sufficient** — use with mutex       |
+
+> **Note:** `volatile` alone is **not thread-safe**. It only prevents the compiler from caching values in registers. It does not guarantee atomicity for multi-byte structs or prevent interleaved reads/writes. Always pair `volatile` with a `k_mutex` for shared state.
 
 ---
 

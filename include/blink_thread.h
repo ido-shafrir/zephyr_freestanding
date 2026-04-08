@@ -13,8 +13,6 @@
 #define LED1_NODE DT_ALIAS(led1)
 extern const struct gpio_dt_spec led0;
 extern const struct gpio_dt_spec led1;
-extern volatile bool blink_enabled;
-extern volatile struct gpio_dt_spec blinking_led;
 
 extern struct k_thread blink_thread_data;
 extern k_thread_stack_t blink_stack[];
