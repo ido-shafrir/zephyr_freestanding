@@ -24,6 +24,7 @@ target_sources(
     src/main.c
     src/net.c
     src/uart.c
+    src/utils.c
 )
 
 target_include_directories(

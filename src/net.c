@@ -13,12 +13,14 @@ LOG_MODULE_REGISTER(net, LOG_LEVEL_DBG);
 K_THREAD_STACK_DEFINE(net_stack, NET_STACK_SIZE);
 struct k_thread net_thread_data;
 
-/*
- * Initialize the network interface and bring it up.
- * This function waits for the W5500 Ethernet controller
- * to be ready and prints the IP configuration.
+/**
+ * @brief Initialize the W5500 network interface.
+ *
+ * Waits for the W5500 Ethernet controller to be ready (up to 12s),
+ * checks link status, and prints the assigned IPv4 configuration.
+ *
+ * @return 0 on success, -1 if no interface found or link never came up.
  */
-
 static int init_net(void)
 {
  LOG_INF("========================================");
@@ -98,7 +100,12 @@ static int init_net(void)
     return 0;
 }
 
-/* ---------- Thread entry point ---------- */
+/**
+ * @brief Net module thread entry point.
+ *
+ * Calls init_net() to bring up the W5500, then exits.
+ * Created by main() via k_thread_create().
+ */
 void net_thread_entry(void *p1, void *p2, void *p3)
 {
     if (init_net() < 0) {
@@ -106,5 +113,76 @@ void net_thread_entry(void *p1, void *p2, void *p3)
         return;
     }
     LOG_INF("Net thread completed initialization. Exiting thread.");
+}
+
+/**
+ * @brief Set the IPv4 address, netmask, and gateway on the default interface.
+ *
+ * Removes any existing IPv4 addresses before applying the new configuration.
+ *
+ * @param cfg Pointer to the IPv4 configuration (address, netmask, gateway).
+ * @return 0 on success, -ENODEV if no interface, -ENOMEM if address add failed.
+ */
+int net_set_ip(const struct net_ipv4_config *cfg)
+{
+    struct net_if *iface = net_if_get_default();
+
+    if (iface == NULL) {
+        LOG_ERR("No network interface found");
+        return -ENODEV;
+    }
+
+    if (!net_if_is_up(iface)) {
+        LOG_ERR("Network interface is not up");
+        return -ENETDOWN;
+    }
+
+    /* Collect old addresses before making any changes */
+    struct in_addr old_addrs[NET_IF_MAX_IPV4_ADDR];
+    int old_count = 0;
+
+    if (iface->config.ip.ipv4 != NULL) {
+        for (int i = 0; i < NET_IF_MAX_IPV4_ADDR; i++) {
+            struct net_if_addr *addr = &iface->config.ip.ipv4->unicast[i].ipv4;
+
+            if (addr->is_used) {
+                old_addrs[old_count++] = addr->address.in_addr;
+            }
+        }
+    }
+
+    /* Remove old addresses first to free a slot */
+    for (int i = 0; i < old_count; i++) {
+        net_if_ipv4_addr_rm(iface, &old_addrs[i]);
+    }
+
+    /* Add new address — triggers a gratuitous ARP if interface is UP */
+    struct net_if_addr *ifaddr = net_if_ipv4_addr_add(
+        iface, &cfg->addr, NET_ADDR_MANUAL, 0);
+
+    if (ifaddr == NULL) {
+        LOG_ERR("Failed to add IPv4 address");
+        return -ENOMEM;
+    }
+
+    /* Set netmask for the newly added address */
+    if (!net_if_ipv4_set_netmask_by_addr(iface, &cfg->addr, &cfg->netmask)) {
+        LOG_WRN("Failed to set netmask");
+    }
+
+    /* Set gateway */
+    net_if_ipv4_set_gw(iface, &cfg->gw);
+
+    char addr_str[NET_IPV4_ADDR_LEN];
+    char mask_str[NET_IPV4_ADDR_LEN];
+    char gw_str[NET_IPV4_ADDR_LEN];
+
+    net_addr_ntop(AF_INET, &cfg->addr, addr_str, sizeof(addr_str));
+    net_addr_ntop(AF_INET, &cfg->netmask, mask_str, sizeof(mask_str));
+    net_addr_ntop(AF_INET, &cfg->gw, gw_str, sizeof(gw_str));
+
+    LOG_INF("IP set: %s mask %s gw %s", addr_str, mask_str, gw_str);
+
+    return 0;
 }
 
