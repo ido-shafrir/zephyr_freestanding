@@ -1,18 +1,8 @@
-# Zephyr Freestanding Application Skeleton
+# ICB-FW — Ionizer Control Box Firmware
 
-This project is a **freestanding** Zephyr application skeleton, intended as a starting point for building Zephyr-based firmware outside of the Zephyr repository tree.
+Firmware for the **Ionizer Control Box (ICB)** project, built on the [Zephyr RTOS](https://zephyrproject.org/).
 
-## Zephyr Application Types
-
-Zephyr supports three application types:
-
-| Type | Description |
-|---|---|
-| **Repository** | The application lives inside the Zephyr repository tree (e.g. under `zephyr/samples/`). Tightly coupled to a specific Zephyr version. |
-| **Workspace** | The application sits alongside the Zephyr source in a shared west workspace, managed by a top-level manifest (e.g. `zephyrproject/my-app/`). |
-| **Freestanding** | The application lives in its own independent directory and pulls in Zephyr as an external dependency via its own `west.yaml` manifest. This is the recommended layout for production projects. |
-
-This project uses the **freestanding** layout. It contains its own west manifest (`west.yaml`) that pins a specific Zephyr release, making the build fully self-contained and reproducible.
+This is a **freestanding** Zephyr application — it lives in its own repository and pulls in Zephyr as an external dependency via a west manifest (`west.yml`), making the build fully self-contained and reproducible.
 
 ## Prerequisites
 
@@ -23,16 +13,16 @@ This project uses the **freestanding** layout. It contains its own west manifest
 
 ## Getting Started
 
-### 1. Initialize the west workspace,  
+### 1. Initialize the west workspace  
 
 From the directory **containing** this project folder, run:
-*Note:* this can take a while first time 
+*Note:* this can take a while the first time.
 
 ```bash
-west init -l zephyr_freestanding
+west init -l ICB-FW
 ```
 
-This tells west to use the `west.yaml` manifest in this project as the workspace manifest.
+This tells west to use the `west.yml` manifest in this project as the workspace manifest.
 
 ### 2. Update (fetch Zephyr and its dependencies)
 
@@ -71,24 +61,23 @@ The `.env` file contains key environment variables used by west, CMake, and the 
 ## Building
 
 Build the application using west, specifying your target board:
-build from the zephyr_freestanding project so the .env file auto loads 
 
 ```bash
-cd zephyr_freestanding
+cd ICB-FW
 west build -b <board> 
 ```
 
 For example, to build for the Nucleo H753ZI:
 
 ```bash
-cd zephyr_freestanding
+cd ICB-FW
 west build -b nucleo_h753zi 
 ```
 
 To do a pristine rebuild:
 
 ```bash
-west build -b nucleo_h753zi zephyr_freestanding --pristine
+west build -b nucleo_h753zi ICB-FW --pristine
 ```
 
 ## Flashing
@@ -100,72 +89,23 @@ west flash
 ## Project Structure
 
 ```
-zephyr_freestanding/
-├── .env             # Environment variables (toolchain, board, paths)
+ICB-FW/
 ├── CMakeLists.txt   # Build system entry point
 ├── prj.conf         # Kconfig project configuration
-├── west.yaml        # West manifest (pins Zephyr v4.0.0)
+├── west.yml         # West manifest (pins Zephyr version)
 ├── README.md
+├── Drivers/         # Hardware drivers
+├── include/         # Header files
+├── docs/            # Project documentation & SOW
 └── src/
     └── main.c       # Application entry point
 ```
 
-## Recommended Workspace Layout
-
-Since the Zephyr workspace is large (kernel, HALs, modules, tools), you should **avoid duplicating it per project**. Instead, keep a single Zephyr workspace and place all your freestanding applications inside it:
-
-```
-zephyr-workspace/                   # One shared workspace root
-├── .west/                          # West workspace metadata
-├── zephyr/                         # Zephyr kernel (fetched by west)
-├── modules/                        # Zephyr modules (HALs, libs, etc.)
-│   ├── hal/
-│   ├── lib/
-│   └── ...
-├── tools/                          # Zephyr tools
-│
-├── app_blinky/                     # Freestanding project A
-│   ├── CMakeLists.txt
-│   ├── prj.conf
-│   ├── west.yml
-│   └── src/
-│       └── main.c
-│
-├── app_sensor/                     # Freestanding project B
-│   ├── CMakeLists.txt
-│   ├── prj.conf
-│   ├── west.yml
-│   └── src/
-│       └── main.c
-│
-└── app_motor_ctrl/                 # Freestanding project C
-    ├── CMakeLists.txt
-    ├── prj.conf
-    ├── west.yml
-    └── src/
-        └── main.c
-```
-
 ### Switching Between Projects
 
-Since `west init -l` sets the workspace manifest to one project at a time, you need to re-initialize when switching projects:
+If you have multiple freestanding projects in the same workspace, use `west init -l` to switch between them:
 
 ```bash
-# Start working on app_blinky
-west init -l app_blinky
-west update
-
-# Later, switch to app_sensor
-west init -l app_sensor
+west init -l ICB-FW
 west update
 ```
-
-> **Note:** If all projects pin the same Zephyr version and modules, `west update` after switching will be fast since the sources are already present. If projects use different versions, west will checkout the appropriate revisions.
-
-### When to Use This Layout
-
-| Scenario | Recommendation |
-|---|---|
-| All projects use the **same Zephyr version** and modules | Single workspace + multiple freestanding apps. Switching is fast. |
-| Projects need **different Zephyr versions** or modules | Single workspace still works, but `west update` may re-checkout sources. Consider separate workspaces if switching is frequent. |
-| Only **one project** | Single workspace with one freestanding app (this repo's default). |

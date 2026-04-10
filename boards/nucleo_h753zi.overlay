@@ -1,0 +1,99 @@
+/*
+ * W5500 Ethernet on SPI1
+ *
+ * Why an "overlay"?
+ *   The base board DTS (nucleo_h753zi.dts) already defines the STM32,
+ *   clocks, GPIOs, etc. We OVERLAY our additions on top — the W5500
+ *   node and the SPI1 pin configuration.
+ *
+ * The Zephyr build system merges this with the base DTS automatically
+ * if the filename matches your board name.
+ */
+
+/* ──────────────────────────────────────────────
+ * Step 1: Disable the onboard Ethernet MAC
+ *
+ * Why? Two network interfaces with two IPs on the same
+ * subnet = confusion. We only want the W5500 active.
+ * When your final board has no internal MAC, this line
+ * simply won't exist in the base DTS — no conflict.
+ * ────────────────────────────────────────────── */
+&mac {
+    status = "disabled";
+};
+/* step 1.1 disable MDIO, as it is using mac */
+
+&mdio {
+    status = "disabled";
+
+    eth_phy: ethernet-phy@0 {
+        status = "disabled";
+    };
+};
+
+/* ──────────────────────────────────────────────
+ * Step 2: Configure SPI1 with your pin assignments
+ *
+ * pinctrl is how Zephyr (on STM32) maps peripheral
+ * functions to physical pins. We define which pins
+ * are SCK/MISO/MOSI and which alternate function.
+ *
+ * AF5 = SPI1 on STM32H7 for these pins.
+ * ────────────────────────────────────────────── */
+&pinctrl {
+    spi1_sck_pa5: spi1_sck_pa5 {
+        pinmux = <STM32_PINMUX('A', 5, AF5)>;
+        bias-pull-down;
+        slew-rate = "very-high-speed";
+    };
+
+    spi1_miso_pa6: spi1_miso_pa6 {
+        pinmux = <STM32_PINMUX('A', 6, AF5)>;
+        bias-pull-down;
+    };
+
+    spi1_mosi_pb5: spi1_mosi_pb5 {
+        pinmux = <STM32_PINMUX('B', 5, AF5)>;
+        bias-pull-down;
+        slew-rate = "very-high-speed";
+    };
+};
+
+/* ──────────────────────────────────────────────
+ * Step 3: Enable SPI1 and attach the W5500
+ *
+ * Key concepts:
+ *   - &spi1 references the SPI1 peripheral already
+ *     defined in the STM32H7 base DTS
+ *   - "status = okay" turns it on
+ *   - pinctrl-0 assigns our pin definitions above
+ *   - The child node "w5500@0" means "device at CS index 0"
+ *   - "compatible" is the magic string that finds the driver
+ *   - "reg = <0>" means CS index 0 (matches the &gpiod 14 line)
+ * ────────────────────────────────────────────── */
+&spi1 {
+    status = "okay";
+    pinctrl-0 = <&spi1_sck_pa5 &spi1_miso_pa6 &spi1_mosi_pb5>;
+    pinctrl-names = "default";
+    cs-gpios = <&gpiod 14 GPIO_ACTIVE_LOW>;
+
+    /* SPI clock: start conservative. The W5500 handles up to 80MHz
+     * but signal integrity on jumper wires is ~10-20MHz max.
+     * We can increase later once it's proven working. */
+
+    w5500: w5500@0 {
+        compatible = "wiznet,w5500";
+        reg = <0>;
+        spi-max-frequency = <10000000>;  /* 10 MHz — safe starting point */
+        int-gpios = <&gpiod 15 GPIO_ACTIVE_LOW>;
+
+        /*
+         * The reset pin — do you have it wired?
+         * If yes, uncomment and set the correct pin:
+         * reset-gpios = <&gpiox XX GPIO_ACTIVE_LOW>;
+         *
+         * If not wired (RST pulled high on the lite board),
+         * that's fine — the driver handles soft-reset via SPI.
+         */
+    };
+};
