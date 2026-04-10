@@ -23,6 +23,7 @@ target_sources(
     PRIVATE
     src/main.c
     src/net.c
+    src/uart.c
 )
 
 target_include_directories(
