@@ -2,8 +2,8 @@
 
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
-#include "net.h"
-#include "uart.h"
+#include "w5500_net.h"
+#include "command_uart.h"
 
 /* 
 Threads : 
@@ -39,7 +39,7 @@ int main(void)
                     NET_PRIORITY, 0, K_NO_WAIT);
 
     k_thread_create(&uart_thread_data, uart_stack, UART_STACK_SIZE,
-                    uart_thread_entry, NULL, NULL, NULL,
+                    command_uart_thread_entry, NULL, NULL, NULL,
                     UART_PRIORITY, 0, K_NO_WAIT);
 
     LOG_INF("All threads created. Entering main loop.");

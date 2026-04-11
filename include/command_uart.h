@@ -1,8 +1,8 @@
-#ifndef UART_H
-#define UART_H
+#ifndef COMMAND_UART_H
+#define COMMAND_UART_H
 
 /**
- * @file uart.h
+ * @file command_uart.h
  * @brief UART command interface module.
  *
  * Provides an interrupt-driven UART RX command interface
@@ -33,6 +33,6 @@ extern k_thread_stack_t uart_stack[];
  * @param p2 Unused.
  * @param p3 Unused.
  */
-void uart_thread_entry(void *p1, void *p2, void *p3);
+void command_uart_thread_entry(void *p1, void *p2, void *p3);
 
-#endif /* UART_H */
+#endif /* COMMAND_UART_H */

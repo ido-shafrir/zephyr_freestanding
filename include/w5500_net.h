@@ -1,8 +1,8 @@
-#ifndef NET_H
-#define NET_H
+#ifndef W5500_NET_H
+#define W5500_NET_H
 
 /**
- * @file net.h
+ * @file w5500_net.h
  * @brief W5500 network module interface.
  *
  * Provides network initialization, static IP configuration,
@@ -62,4 +62,4 @@ int net_set_dhcp(void);
  */
 int net_get_ip(struct net_ipv4_config *cfg);
 
-#endif /* NET_H */
+#endif /* W5500_NET_H */

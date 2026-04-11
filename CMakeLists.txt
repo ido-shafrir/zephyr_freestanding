@@ -22,8 +22,8 @@ target_sources(
     app
     PRIVATE
     src/main.c
-    src/net.c
-    src/uart.c
+    src/w5500_net.c
+    src/command_uart.c
     src/utils.c
 )
 

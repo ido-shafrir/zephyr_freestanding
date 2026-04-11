@@ -6,9 +6,9 @@
 #include <zephyr/net/net_mgmt.h>
 #include <zephyr/net/dhcpv4.h>
 #include <zephyr/logging/log.h>
-#include "net.h"
+#include "w5500_net.h"
 
-LOG_MODULE_REGISTER(net, LOG_LEVEL_DBG);
+LOG_MODULE_REGISTER(w5500_net, LOG_LEVEL_DBG);
 
 /* ---------- Thread resources ---------- */
 K_THREAD_STACK_DEFINE(net_stack, NET_STACK_SIZE);

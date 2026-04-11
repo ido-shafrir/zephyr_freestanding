@@ -3,11 +3,11 @@
 #include <zephyr/drivers/uart.h>
 #include <zephyr/logging/log.h>
 #include <string.h>
-#include "uart.h"
-#include "net.h"
+#include "command_uart.h"
+#include "w5500_net.h"
 #include "utils.h"
 
-LOG_MODULE_REGISTER(uart, LOG_LEVEL_DBG);
+LOG_MODULE_REGISTER(command_uart, LOG_LEVEL_DBG);
 
 /* ---------- Thread resources ---------- */
 K_THREAD_STACK_DEFINE(uart_stack, UART_STACK_SIZE);
@@ -241,7 +241,7 @@ static void dispatch_command(const char *cmd)
  * waiting for complete commands via semaphore and dispatching them.
  * Created by main() via k_thread_create().
  */
-void uart_thread_entry(void *p1, void *p2, void *p3)
+void command_uart_thread_entry(void *p1, void *p2, void *p3)
 {
     if (!device_is_ready(uart_dev)) {
         LOG_ERR("UART device not ready");
