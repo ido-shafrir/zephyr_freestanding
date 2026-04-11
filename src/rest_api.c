@@ -12,12 +12,21 @@
 #include <zephyr/kernel.h>
 #include <zephyr/net/http/server.h>
 #include <zephyr/net/http/service.h>
+#include <zephyr/net/http/parser.h>
 #include <zephyr/logging/log.h>
 #include <string.h>
 #include <stdio.h>
 #include "rest_api.h"
 
 LOG_MODULE_REGISTER(rest_api, LOG_LEVEL_DBG);
+
+/**
+ * @brief Log an incoming HTTP request (method + URL).
+ *
+ * Call once per request, typically at the DATA_FINAL entry point.
+ */
+#define LOG_REQUEST(client) \
+    LOG_INF("%s %s", http_method_str(client->method), client->url_buffer)
 
 /* ---------- Thread resources ---------- */
 K_THREAD_STACK_DEFINE(rest_api_stack, REST_API_STACK_SIZE);
@@ -80,6 +89,7 @@ static int api_ping_handler(struct http_client_ctx *client,
                             void *user_data)
 {
     if (status == HTTP_SERVER_REQUEST_DATA_FINAL) {
+        LOG_REQUEST(client);
         send_json_response(response_ctx, HTTP_200_OK,
                            ping_json, sizeof(ping_json) - 1);
     }
@@ -121,6 +131,7 @@ static int api_help_handler(struct http_client_ctx *client,
                             void *user_data)
 {
     if (status == HTTP_SERVER_REQUEST_DATA_FINAL) {
+        LOG_REQUEST(client);
         int off = snprintf(help_buf, sizeof(help_buf),
                            "{\"endpoints\":[");
 
@@ -212,6 +223,7 @@ static int index_handler(struct http_client_ctx *client,
                          void *user_data)
 {
     if (status == HTTP_SERVER_REQUEST_DATA_FINAL) {
+        LOG_REQUEST(client);
         int off = snprintf(index_buf, sizeof(index_buf),
                            "<!DOCTYPE html><html><head><title>ICB-FW</title></head><body>"
                            "<h1>ICB Firmware - Available Paths</h1><ul>");

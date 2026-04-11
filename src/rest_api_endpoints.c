@@ -147,6 +147,7 @@ static int api_echo_handler(struct http_client_ctx *client,
     }
 
     if (status == HTTP_SERVER_REQUEST_DATA_FINAL) {
+        LOG_REQUEST(client);
         /* Append any remaining data from this final chunk */
         if (request_ctx->data_len > 0) {
             size_t avail = sizeof(echo_recv_buf) - echo_recv_len;
@@ -212,6 +213,7 @@ static int api_ion_test_handler(struct http_client_ctx *client,
                                 void *user_data)
 {
     if (status == HTTP_SERVER_REQUEST_DATA_FINAL) {
+        LOG_REQUEST(client);
         const char *url = (const char *)client->url_buffer;
         size_t url_len = strlen(url);
 
@@ -291,6 +293,7 @@ static int api_set_ip_dhcp_handler(struct http_client_ctx *client,
                                    void *user_data)
 {
     if (status == HTTP_SERVER_REQUEST_DATA_FINAL) {
+        LOG_REQUEST(client);
         int ret = net_set_dhcp();
 
         if (ret == 0) {
@@ -425,6 +428,7 @@ static int api_set_ip_handler(struct http_client_ctx *client,
     }
 
     if (status == HTTP_SERVER_REQUEST_DATA_FINAL) {
+        LOG_REQUEST(client);
         /* Append any remaining data from this final chunk */
         if (request_ctx->data_len > 0) {
             size_t avail = sizeof(set_ip_recv_buf) - set_ip_recv_len;
