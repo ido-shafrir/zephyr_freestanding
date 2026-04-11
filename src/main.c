@@ -4,6 +4,7 @@
 #include <zephyr/logging/log.h>
 #include "w5500_net.h"
 #include "command_uart.h"
+#include "rest_api.h"
 
 /* 
 Threads : 
@@ -16,6 +17,11 @@ Threads :
   - Interrupt-driven RX on the console UART (usart3 via ST-Link).
   - Dispatches commands (e.g. 'ping' → 'pong').
   priority: 4 (higher than net, responsive to user input)
+
+* rest_api_thread: Starts the HTTP REST API server on port 80.
+  - Serves JSON endpoints (/api/ping, /api/help) and an HTML index.
+  - Uses Zephyr's built-in HTTP server subsystem.
+  priority: 7 (lower than net/uart, background service)
 
 */
 
@@ -41,6 +47,10 @@ int main(void)
     k_thread_create(&uart_thread_data, uart_stack, UART_STACK_SIZE,
                     command_uart_thread_entry, NULL, NULL, NULL,
                     UART_PRIORITY, 0, K_NO_WAIT);
+
+    k_thread_create(&rest_api_thread_data, rest_api_stack, REST_API_STACK_SIZE,
+                    rest_api_thread_entry, NULL, NULL, NULL,
+                    REST_API_PRIORITY, 0, K_NO_WAIT);
 
     LOG_INF("All threads created. Entering main loop.");
 

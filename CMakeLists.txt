@@ -24,6 +24,8 @@ target_sources(
     src/main.c
     src/w5500_net.c
     src/command_uart.c
+    src/rest_api.c
+    src/rest_api_endpoints.c
     src/utils.c
 )
 
@@ -32,3 +34,5 @@ target_include_directories(
     PRIVATE
     include
 )
+
+zephyr_linker_sources(SECTIONS sections-rom.ld)
