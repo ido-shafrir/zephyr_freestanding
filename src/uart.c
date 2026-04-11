@@ -145,6 +145,54 @@ static void cmd_ip_set(const char *args)
     }
 }
 
+/**
+ * @brief Handle the 'ip_get' command.
+ *
+ * Reads the current IPv4 configuration from the network interface
+ * and sends it over UART as "ip=<addr> mask=<mask> gw=<gw>".
+ */
+static void cmd_ip_get(void)
+{
+    struct net_ipv4_config cfg;
+    int ret = net_get_ip(&cfg);
+
+    if (ret < 0) {
+        uart_send("error: no IP address assigned\r\n");
+        return;
+    }
+
+    char addr_str[NET_IPV4_ADDR_LEN];
+    char mask_str[NET_IPV4_ADDR_LEN];
+    char gw_str[NET_IPV4_ADDR_LEN];
+
+    net_addr_ntop(AF_INET, &cfg.addr, addr_str, sizeof(addr_str));
+    net_addr_ntop(AF_INET, &cfg.netmask, mask_str, sizeof(mask_str));
+    net_addr_ntop(AF_INET, &cfg.gw, gw_str, sizeof(gw_str));
+
+    uart_send("ip=");
+    uart_send(addr_str);
+    uart_send(" mask=");
+    uart_send(mask_str);
+    uart_send(" gw=");
+    uart_send(gw_str);
+    uart_send("\r\n");
+}
+
+/**
+ * @brief Print the list of available UART commands.
+ *
+ * Sends a formatted help message over UART listing all
+ * supported commands and their usage.
+ */
+static void print_help(void)
+{
+    uart_send("Available commands:\r\n");
+    uart_send("  help, h, ?,                   - Show this help\r\n");
+    uart_send("  ping                          - Respond with 'pong'\r\n");
+    uart_send("  ip_get                        - Show current IPv4 configuration\r\n");
+    uart_send("  ip_set <ip> <mask> <gateway>  - Set static IPv4 configuration\r\n");
+    uart_send("  ip_set_dhcp                   - Switch to DHCP\r\n");
+}
 
 
 /**
@@ -157,15 +205,21 @@ static void cmd_ip_set(const char *args)
  */
 static void dispatch_command(const char *cmd)
 {
-    if (strcmp(cmd, "help") == 0) {
-        uart_send("Available commands:\r\n");
-        uart_send("  help                          - Show this help\r\n");
-        uart_send("  ping                          - Respond with 'pong'\r\n");
-        uart_send("  ip_set <ip> <mask> <gateway>  - Set IPv4 configuration\r\n");
+    if (strcmp(cmd, "help") == 0 || strcmp(cmd, "h") == 0 || strcmp(cmd, "?") == 0) {
+        print_help();
     } else if (strcmp(cmd, "ping") == 0) {
         pong();
+    } else if (strcmp(cmd, "ip_get") == 0) {
+        cmd_ip_get();
     } else if (strncmp(cmd, "ip_set ", 7) == 0) {
         cmd_ip_set(cmd + 7);
+    } else if (strcmp(cmd, "ip_set_dhcp") == 0) {
+        int ret = net_set_dhcp();
+        if (ret < 0) {
+            uart_send("error: failed to start DHCP\r\n");
+        } else {
+            uart_send("ok: DHCP started\r\n");
+        }
     } else {
         uart_send("unknown command: ");
         uart_send(cmd);
@@ -197,7 +251,7 @@ void uart_thread_entry(void *p1, void *p2, void *p3)
     uart_irq_rx_enable(uart_dev);
 
     LOG_INF("USB/UART command interface ready");
-    uart_send("ICB-FW ready. Type 'ping' to test.\r\n");
+    uart_send("ICB-FW ready. Type 'help' to test.\r\n");
 
     while (1) {
         k_sem_take(&rx_sem, K_FOREVER);

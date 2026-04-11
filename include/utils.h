@@ -1,6 +1,14 @@
 #ifndef UTILS_H
 #define UTILS_H
 
+/**
+ * @file utils.h
+ * @brief Validation utility functions.
+ *
+ * Provides IPv4 address and netmask validation helpers
+ * used by the UART command interface.
+ */
+
 #include <stdbool.h>
 
 /**

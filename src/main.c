@@ -21,6 +21,15 @@ Threads :
 
 
 LOG_MODULE_REGISTER(main, LOG_LEVEL_DBG);
+
+/**
+ * @brief Application entry point and thread orchestrator.
+ *
+ * Creates the net and UART threads, then sleeps forever.
+ * All real work is done in the spawned threads.
+ *
+ * @return 0 (never reached).
+ */
 int main(void)
 {
     LOG_INF("Starting ICB Firmware...");
