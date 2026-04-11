@@ -53,6 +53,7 @@ static void uart_isr_cb(const struct device *dev, void *user_data)
         if (c == '\n' || c == '\r') {
             if (rx_pos > 0) {
                 rx_buf[rx_pos] = '\0';
+                rx_pos = 0;
                 k_sem_give(&rx_sem);
             }
         } else if (rx_pos < RX_BUF_SIZE - 1) {
@@ -257,6 +258,5 @@ void uart_thread_entry(void *p1, void *p2, void *p3)
         k_sem_take(&rx_sem, K_FOREVER);
 
         dispatch_command(rx_buf);
-        rx_pos = 0;
     }
 }
