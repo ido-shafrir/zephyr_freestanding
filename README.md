@@ -106,9 +106,22 @@ zephyr_freestanding/
 ├── prj.conf         # Kconfig project configuration
 ├── west.yaml        # West manifest (pins Zephyr v4.0.0)
 ├── README.md
+├── bug_reports/     # Bug reports from downstream (forked) projects
+│   ├── README.md
+│   ├── 001_w5500_dhcp_failure.md
+│   └── 002_uart_double_command_dispatch.md
 └── src/
     └── main.c       # Application entry point
 ```
+
+## Bug Reports
+
+The [`bug_reports/`](bug_reports/) directory contains bug reports collected from downstream (forked) projects that build on this repository. Each report documents symptoms, root cause, and fix so that upstream users can avoid the same pitfalls.
+
+| # | Title | Severity | Status |
+|---|-------|----------|--------|
+| 001 | [W5500 DHCP Failure — No Lease Acquired](bug_reports/001_w5500_dhcp_failure.md) | High | Resolved |
+| 002 | [UART Commands Dispatched Twice](bug_reports/002_uart_double_command_dispatch.md) | Low | Resolved |
 
 ## Recommended Workspace Layout
 
