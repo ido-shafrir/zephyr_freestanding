@@ -5,6 +5,7 @@
 #include "w5500_net.h"
 #include "command_uart.h"
 #include "rest_api.h"
+#include "ota.h"
 
 /* 
 Threads : 
@@ -22,6 +23,12 @@ Threads :
   - Serves JSON endpoints (/api/ping, /api/help) and an HTML index.
   - Uses Zephyr's built-in HTTP server subsystem.
   priority: 7 (lower than net/uart, background service)
+
+* ota_thread: MCUmgr OTA update and health-based image confirmation.
+  - Waits for all modules (net, uart, rest_api) to report ready.
+  - Confirms the running image with MCUboot once all healthy.
+  - MCUmgr SMP UDP server runs in its own Zephyr-managed thread.
+  priority: 8 (lowest, background OTA concern)
 
 */
 
@@ -51,6 +58,10 @@ int main(void)
     k_thread_create(&rest_api_thread_data, rest_api_stack, REST_API_STACK_SIZE,
                     rest_api_thread_entry, NULL, NULL, NULL,
                     REST_API_PRIORITY, 0, K_NO_WAIT);
+
+    k_thread_create(&ota_thread_data, ota_stack, OTA_STACK_SIZE,
+                    ota_thread_entry, NULL, NULL, NULL,
+                    OTA_PRIORITY, 0, K_NO_WAIT);
 
     LOG_INF("All threads created. Entering main loop.");
 

@@ -6,6 +6,7 @@
 #include "command_uart.h"
 #include "w5500_net.h"
 #include "utils.h"
+#include "ota.h"
 
 LOG_MODULE_REGISTER(command_uart, LOG_LEVEL_DBG);
 
@@ -253,6 +254,8 @@ void command_uart_thread_entry(void *p1, void *p2, void *p3)
 
     LOG_INF("USB/UART command interface ready");
     uart_send("ICB-FW ready. Type 'help' to test.\r\n");
+
+    ota_report_module_ready(OTA_MODULE_UART);
 
     while (1) {
         k_sem_take(&rx_sem, K_FOREVER);

@@ -27,6 +27,7 @@ target_sources(
     src/rest_api.c
     src/rest_api_endpoints.c
     src/utils.c
+    src/ota.c
 )
 
 target_include_directories(

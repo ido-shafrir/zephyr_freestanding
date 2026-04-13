@@ -7,6 +7,7 @@
 #include <zephyr/net/dhcpv4.h>
 #include <zephyr/logging/log.h>
 #include "w5500_net.h"
+#include "ota.h"
 
 LOG_MODULE_REGISTER(w5500_net, LOG_LEVEL_DBG);
 
@@ -179,6 +180,8 @@ void net_thread_entry(void *p1, void *p2, void *p3)
         LOG_ERR("Network initialization failed.");
         return;
     }
+
+    ota_report_module_ready(OTA_MODULE_NET);
     LOG_INF("Net thread completed initialization. Exiting thread.");
 }
 

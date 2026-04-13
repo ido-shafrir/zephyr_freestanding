@@ -11,6 +11,52 @@
  */
 
 /* ──────────────────────────────────────────────
+ * Flash Partition Layout for MCUboot + OTA
+ *
+ * The base nucleo_h753zi.dts defines partition@0 (128 KB boot),
+ * partition@20000 (256 KB slot0), partition@60000 (384 KB slot1),
+ * and partition@c0000 (256 KB storage). Those are too small for
+ * our firmware. We delete them and define a larger layout using
+ * the full 2 MB dual-bank flash.
+ *
+ * STM32H753ZI flash: bank1 = 0x08000000–0x080FFFFF (1 MB, 8×128 KB)
+ *                    bank2 = 0x08100000–0x081FFFFF (1 MB, 8×128 KB)
+ *
+ * New layout:
+ *   boot_partition    128 KB  (1 sector)  — MCUboot bootloader  (kept as-is)
+ *   slot0_partition   896 KB  (7 sectors) — primary app image   (enlarged)
+ *   slot1_partition   896 KB  (7 sectors) — upgrade image       (moved to bank2)
+ *   scratch_partition 128 KB  (1 sector)  — swap scratch area   (new)
+ * ────────────────────────────────────────────── */
+
+/* Delete the base board's partition nodes that conflict with our layout */
+&flash0 {
+    partitions {
+        /delete-node/ partition@20000;  /* old slot0: 256 KB */
+        /delete-node/ partition@60000;  /* old slot1: 384 KB */
+        /delete-node/ partition@c0000;  /* old storage: 256 KB */
+
+        /* Enlarged slot0: 896 KB (7 × 128 KB), fills rest of bank 1 */
+        slot0_partition: partition@20000 {
+            label = "image-0";
+            reg = <0x00020000 DT_SIZE_K(896)>;
+        };
+
+        /* Moved slot1 to bank 2: 896 KB (7 × 128 KB) */
+        slot1_partition: partition@100000 {
+            label = "image-1";
+            reg = <0x00100000 DT_SIZE_K(896)>;
+        };
+
+        /* Swap scratch: last sector of bank 2 */
+        scratch_partition: partition@1e0000 {
+            label = "image-scratch";
+            reg = <0x001E0000 DT_SIZE_K(128)>;
+        };
+    };
+};
+
+/* ──────────────────────────────────────────────
  * Step 1: Disable the onboard Ethernet MAC
  *
  * Why? Two network interfaces with two IPs on the same

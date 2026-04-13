@@ -17,6 +17,7 @@
 #include <string.h>
 #include <stdio.h>
 #include "rest_api.h"
+#include "ota.h"
 
 LOG_MODULE_REGISTER(rest_api, LOG_LEVEL_DBG);
 
@@ -279,6 +280,8 @@ void rest_api_thread_entry(void *p1, void *p2, void *p3)
 
     size_t ep_count;
     STRUCT_SECTION_COUNT(endpoint_entry, &ep_count);
+
+    ota_report_module_ready(OTA_MODULE_REST_API);
 
     LOG_INF("HTTP server started on port %u", http_port);
     LOG_INF("Available endpoints (%zu):", ep_count);
