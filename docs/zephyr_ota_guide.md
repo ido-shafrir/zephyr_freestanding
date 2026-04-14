@@ -56,20 +56,17 @@ The STM32H753ZI has 2 MB of internal flash organized as dual-bank (1 MB each), w
 | `slot1_partition` | `image-1` | `0x08100000` | 896 KB | Bank 2, sectors 0–6 | Upgrade (staging) image |
 | `scratch_partition` | `image-scratch` | `0x081E0000` | 128 KB | Bank 2, sector 7 | Swap scratch area |
 
-This is defined in [`boards/nucleo_h753zi.overlay`](../boards/nucleo_h753zi.overlay):
+The base board DTS (`nucleo_h753zi.dts`) already defines partitions at smaller
+sizes (256 KB slot0, 384 KB slot1). Our overlay in
+[`boards/nucleo_h753zi.overlay`](../boards/nucleo_h753zi.overlay) **deletes**
+the old nodes and redefines them:
 
 ```dts
 &flash0 {
     partitions {
-        compatible = "fixed-partitions";
-        #address-cells = <1>;
-        #size-cells = <1>;
-
-        boot_partition: partition@0 {
-            label = "mcuboot";
-            reg = <0x00000000 DT_SIZE_K(128)>;
-            read-only;
-        };
+        /delete-node/ partition@20000;  /* old slot0: 256 KB */
+        /delete-node/ partition@60000;  /* old slot1: 384 KB */
+        /delete-node/ partition@c0000;  /* old storage: 256 KB */
 
         slot0_partition: partition@20000 {
             label = "image-0";
@@ -89,15 +86,66 @@ This is defined in [`boards/nucleo_h753zi.overlay`](../boards/nucleo_h753zi.over
 };
 ```
 
-The `chosen` node tells Zephyr to link the application into slot 0:
+The `boot_partition` (128 KB at `@0`) is kept from the base DTS unchanged.
+The base board's `chosen { zephyr,code-partition = &slot0_partition; }` is
+also kept as-is — it correctly links the app into slot 0.
+
+---
+
+## Sysbuild Directory Structure
+
+```
+ICB-FW/
+├── boards/
+│   └── nucleo_h753zi.overlay     ← App DTS overlay (partitions + W5500)
+├── prj.conf                      ← App Kconfig (MCUmgr, flash, etc.)
+├── sysbuild.conf                 ← Top-level: SB_CONFIG_BOOTLOADER_MCUBOOT=y
+└── sysbuild/
+    ├── mcuboot.conf              ← MCUboot Kconfig (swap, stack, flash)
+    └── mcuboot/
+        ├── prj.conf              ← Required (can be empty)
+        └── boards/
+            └── nucleo_h753zi.overlay  ← MCUboot DTS overlay (partitions)
+```
+
+### Why Two Overlays?
+
+In sysbuild, MCUboot and the application are **separate CMake projects**.
+Each has its own device tree compilation. The board overlay in `boards/`
+is only applied to the application — MCUboot does NOT inherit it.
+
+If MCUboot uses the base board's original (smaller) partition layout while
+the app uses the enlarged layout, MCUboot will look for image headers at
+the wrong addresses and fail with "Unable to find bootable image".
+
+The solution is to provide a **matching partition overlay** for MCUboot at:
+```
+sysbuild/mcuboot/boards/nucleo_h753zi.overlay
+```
+
+This overlay must:
+1. Delete the same base partition nodes (`/delete-node/`)
+2. Redefine the same slot0, slot1, and scratch partitions at the same
+   addresses and sizes
+3. **Override `zephyr,code-partition` to `&boot_partition`** — because the
+   base DTS points it at `&slot0_partition`, which would cause MCUboot
+   itself to be linked at `0x08020000` instead of `0x08000000`
 
 ```dts
+/* MCUboot must be placed at the boot partition, not slot0 */
 / {
     chosen {
-        zephyr,code-partition = &slot0_partition;
+        zephyr,code-partition = &boot_partition;
     };
 };
 ```
+
+### Why `sysbuild/mcuboot/prj.conf` Exists
+
+Zephyr's build system requires a `prj.conf` when the directory
+`sysbuild/mcuboot/` exists (it's treated as a configuration root). The file
+can be empty — the actual MCUboot Kconfig lives in `sysbuild/mcuboot.conf`
+(one level up), which is the standard sysbuild location.
 
 ---
 
@@ -162,6 +210,7 @@ CONFIG_GPIO=y
 CONFIG_LOG=y
 CONFIG_MCUBOOT_LOG_LEVEL_INF=y
 CONFIG_MCUBOOT_SERIAL=n              # No serial recovery — we use UDP
+CONFIG_MAIN_STACK_SIZE=16384         # RSA-2048 verification needs ~8+ KB stack
 ```
 
 | Option | Purpose |
@@ -169,6 +218,7 @@ CONFIG_MCUBOOT_SERIAL=n              # No serial recovery — we use UDP
 | `CONFIG_BOOT_SWAP_USING_SCRATCH` | Uses the scratch partition to safely swap images. Power-safe — interrupted swaps resume on next boot. |
 | `CONFIG_BOOT_MAX_IMG_SECTORS` | Must be ≥ the number of sectors in the largest slot. Set to 16 for headroom. |
 | `CONFIG_MCUBOOT_SERIAL` | Disabled. We use MCUmgr over UDP, not MCUboot's built-in serial recovery. |
+| `CONFIG_MAIN_STACK_SIZE` | 16 KB. RSA-2048 signature verification uses mbedTLS bignum math which is deeply recursive. Default 2–4 KB stack causes stack overflow on STM32H7. |
 
 ---
 
@@ -277,9 +327,8 @@ west build -b nucleo_h753zi --sysbuild --pristine
 ```
 
 This produces:
-- `build/mcuboot/zephyr/zephyr.bin` — MCUboot bootloader
-- `build/ICB-FW/zephyr/zephyr.signed.bin` — Signed application image
-- `build/merged.hex` — Combined bootloader + app for initial flash
+- `build/mcuboot/zephyr/zephyr.hex` — MCUboot bootloader
+- `build/ICB-FW/zephyr/zephyr.signed.hex` — Signed application image
 
 ### Without MCUboot (development / direct flash)
 
@@ -295,7 +344,8 @@ This builds the application without MCUboot. The OTA thread detects `boot_is_img
 west flash
 ```
 
-When built with `--sysbuild`, this flashes the merged hex (bootloader + app). Subsequent updates use OTA.
+When built with `--sysbuild`, `west flash` flashes both MCUboot and the
+signed app automatically. Subsequent updates use OTA via MCUmgr.
 
 ---
 
@@ -377,6 +427,9 @@ See [OTA Update Procedure](ota_update_procedure.md) for the step-by-step process
 | `boot_write_img_confirmed()` fails | Not built with `CONFIG_BOOTLOADER_MCUBOOT=y` | Ensure `prj.conf` has the option. Rebuild with `--pristine`. |
 | MCUboot fails to validate image | Wrong signing key | Ensure the image was signed with the key MCUboot was built with. |
 | Flash partition overlap errors | DTS addresses wrong | Verify partition addresses don't overlap (see flash layout table above). |
+| MCUboot stack overflow / MPU fault | RSA-2048 needs >8 KB stack | Set `CONFIG_MAIN_STACK_SIZE=16384` in `sysbuild/mcuboot.conf`. |
+| MCUboot `magic=unset` on valid image | MCUboot partition mismatch | Verify `build/mcuboot/zephyr/zephyr.dts` has the same partition addresses as the app. Add/fix `sysbuild/mcuboot/boards/nucleo_h753zi.overlay`. |
+| MCUboot hex overlaps with app hex | MCUboot linked to wrong address | Add `chosen { zephyr,code-partition = &boot_partition; }` in MCUboot's overlay. |
 
 ---
 
@@ -384,10 +437,12 @@ See [OTA Update Procedure](ota_update_procedure.md) for the step-by-step process
 
 | File | Purpose |
 |------|---------|
-| [`boards/nucleo_h753zi.overlay`](../boards/nucleo_h753zi.overlay) | Flash partition layout (DTS) |
+| [`boards/nucleo_h753zi.overlay`](../boards/nucleo_h753zi.overlay) | App DTS overlay: flash partitions + W5500 |
 | [`prj.conf`](../prj.conf) | Application Kconfig (MCUmgr, flash, MCUboot awareness) |
 | [`sysbuild.conf`](../sysbuild.conf) | Sysbuild config (enables MCUboot co-build) |
 | [`sysbuild/mcuboot.conf`](../sysbuild/mcuboot.conf) | MCUboot bootloader Kconfig |
+| [`sysbuild/mcuboot/prj.conf`](../sysbuild/mcuboot/prj.conf) | Required empty file (Zephyr needs it when dir exists) |
+| [`sysbuild/mcuboot/boards/nucleo_h753zi.overlay`](../sysbuild/mcuboot/boards/nucleo_h753zi.overlay) | MCUboot DTS overlay: matching partitions + boot_partition chosen |
 | [`include/ota.h`](../include/ota.h) | OTA module interface + health registry API |
 | [`src/ota.c`](../src/ota.c) | OTA thread + health-based confirmation logic |
 | [`src/main.c`](../src/main.c) | Thread creation (OTA thread added here) |

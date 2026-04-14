@@ -1,0 +1,48 @@
+/*
+ * MCUboot board overlay for nucleo_h753zi
+ *
+ * This must match the application's flash partition layout exactly.
+ * MCUboot uses these partitions to locate slot0 (primary), slot1
+ * (secondary), and scratch areas.
+ *
+ * Applied automatically by sysbuild from:
+ *   sysbuild/mcuboot/boards/nucleo_h753zi.overlay
+ */
+
+/*
+ * Link MCUboot itself to the boot partition (0x08000000), not slot0.
+ * The base board DTS has: chosen { zephyr,code-partition = &slot0_partition; }
+ * which would put MCUboot at 0x08020000 — wrong. MCUboot lives at 0x08000000.
+ */
+/ {
+    chosen {
+        zephyr,code-partition = &boot_partition;
+    };
+};
+
+/* Delete the base board's default partition nodes */
+&flash0 {
+    partitions {
+        /delete-node/ partition@20000;  /* old slot0: 256 KB */
+        /delete-node/ partition@60000;  /* old slot1: 384 KB */
+        /delete-node/ partition@c0000;  /* old storage: 256 KB */
+
+        /* Enlarged slot0: 896 KB (7 × 128 KB), fills rest of bank 1 */
+        slot0_partition: partition@20000 {
+            label = "image-0";
+            reg = <0x00020000 DT_SIZE_K(896)>;
+        };
+
+        /* Moved slot1 to bank 2: 896 KB (7 × 128 KB) */
+        slot1_partition: partition@100000 {
+            label = "image-1";
+            reg = <0x00100000 DT_SIZE_K(896)>;
+        };
+
+        /* Swap scratch: last sector of bank 2 */
+        scratch_partition: partition@1e0000 {
+            label = "image-scratch";
+            reg = <0x001E0000 DT_SIZE_K(128)>;
+        };
+    };
+};
