@@ -6,13 +6,20 @@
 ### ============================================================
 
 # ADJUST THIS to match your device's IP address!
-@host = http://192.168.0.84
-
+#@host = http://192.168.0.84
+@host = http://10.100.110.91
 ### ----------------------------------------------------------
 ### Ping – connectivity check
 ### ----------------------------------------------------------
 
 GET {{host}}/api/ping
+
+
+### ----------------------------------------------------------
+### Ping – connectivity check
+### ----------------------------------------------------------
+
+GET {{host}}/api/hello_world
 
 ### ----------------------------------------------------------
 ### Help – list all available endpoints
@@ -42,7 +49,7 @@ Content-Type: application/json
 ### Ion test – returns the ion name from the URL
 ### ----------------------------------------------------------
 
-GET {{host}}/api/ion/sodium/test
+GET {{host}}/api/ion/sodium1/test
 
 ### ----------------------------------------------------------
 ### Set IP to DHCP

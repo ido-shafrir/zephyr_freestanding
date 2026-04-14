@@ -112,6 +112,42 @@ HTTP_RESOURCE_DEFINE(api_ping_res, icb_api, "/api/ping", &api_ping_detail);
 ENDPOINT_ENTRY_DEFINE(ep_ping, "/api/ping", "GET",
     "Returns {\"result\":\"pong\"}. Use for connectivity testing.");
 
+/*=========================================================================
+ * Endpoint: GET /api/hello_world
+ *=========================================================================
+ */
+static char hello_world_buf[] = "{\"result\":\"Hello, world! after ota\"}";
+
+static int api_hello_world_handler(struct http_client_ctx *client,
+                                  enum http_transaction_status status,
+                                  const struct http_request_ctx *request_ctx,
+                                  struct http_response_ctx *response_ctx,
+                                  void *user_data)
+{
+    if (status == HTTP_SERVER_REQUEST_DATA_FINAL) {
+        LOG_REQUEST(client);
+        send_json_response(response_ctx, HTTP_200_OK,
+                           hello_world_buf, sizeof(hello_world_buf) - 1);
+    }
+
+    return 0;
+}
+
+struct http_resource_detail_dynamic api_hello_world_detail = {
+    .common = {
+        .type = HTTP_RESOURCE_TYPE_DYNAMIC,
+        .bitmask_of_supported_http_methods = BIT(HTTP_GET),
+        .path_len = sizeof("/api/hello_world") - 1,
+    },
+    .cb = api_hello_world_handler,
+};
+
+HTTP_RESOURCE_DEFINE(api_hello_world_res, icb_api, "/api/hello_world",
+                        &api_hello_world_detail);
+ENDPOINT_ENTRY_DEFINE(ep_hello_world, "/api/hello_world", "GET", "Returns {\"result\":\"Hello, world!\"}.");
+
+
+
 /* ==========================================================================
  * Endpoint: GET /api/help
  * ========================================================================== */

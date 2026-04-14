@@ -168,9 +168,12 @@ CONFIG_IMG_MANAGER=y                 # Image manager (boot_write_img_confirmed, 
 CONFIG_IMG_ERASE_PROGRESSIVELY=y     # Erase slot1 sectors on-the-fly during upload
 
 # ─── MCUmgr core ───
+CONFIG_ZCBOR=y                       # CBOR encoding — required by MCUmgr
 CONFIG_MCUMGR=y                      # MCUmgr framework
 CONFIG_MCUMGR_GRP_IMG=y              # Image management command group (upload/list/test/confirm)
 CONFIG_MCUMGR_GRP_OS=y               # OS command group (reset, echo)
+CONFIG_MCUMGR_GRP_OS_MCUMGR_PARAMS=y # SMP v2 parameter negotiation
+CONFIG_MCUMGR_SMP_VERBOSE_ERR_RESPONSE=y  # Detailed error responses
 
 # ─── MCUmgr SMP transport: UDP ───
 CONFIG_MCUMGR_TRANSPORT_UDP=y        # Enable SMP over UDP
@@ -183,8 +186,10 @@ CONFIG_MCUMGR_TRANSPORT_UDP_MTU=1500  # MTU size
 |--------|---------|
 | `CONFIG_BOOTLOADER_MCUBOOT` | Enables MCUboot-aware image trailer handling. Without this, `boot_write_img_confirmed()` doesn't exist. |
 | `CONFIG_IMG_ERASE_PROGRESSIVELY` | Erases slot 1 sectors as the image is written, instead of erasing all 896 KB upfront. Reduces upload start latency. |
+| `CONFIG_ZCBOR` | CBOR serialization library. **Required dependency** for MCUmgr — without it, the entire `CONFIG_MCUMGR` menu is silently dropped. See [Bug #007](../bug_reports/007_mcumgr_silently_disabled.md). |
 | `CONFIG_MCUMGR_GRP_IMG` | Registers the SMP image management commands: upload, list, test, confirm, erase. |
 | `CONFIG_MCUMGR_GRP_OS` | Registers `os reset` (used to trigger the swap after upload) and `os echo`. |
+| `CONFIG_MCUMGR_GRP_OS_MCUMGR_PARAMS` | Enables SMP v2 parameter negotiation. Required by `smpmgr` for optimal operation. |
 | `CONFIG_MCUMGR_TRANSPORT_UDP_PORT` | The UDP port the SMP server listens on. Default is 1337. Change if it conflicts with your network. |
 
 ### `sysbuild.conf` — Sysbuild Top-Level Config
