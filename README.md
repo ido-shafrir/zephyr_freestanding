@@ -122,6 +122,11 @@ The [`bug_reports/`](bug_reports/) directory contains bug reports collected from
 |---|-------|----------|--------|
 | 001 | [W5500 DHCP Failure — No Lease Acquired](bug_reports/001_w5500_dhcp_failure.md) | High | Resolved |
 | 002 | [UART Commands Dispatched Twice](bug_reports/002_uart_double_command_dispatch.md) | Low | Resolved |
+| 003 | [HTTP POST Body Missing](bug_reports/003_http_post_body_missing.md) | High | Resolved |
+| 004 | [HTTP Unreachable After IP Change](bug_reports/004_http_unreachable_after_ip_change.md) | High | Resolved |
+| 005 | [Sysbuild OTA Build Failures](bug_reports/005_sysbuild_ota_build_failures.md) | Medium | Resolved |
+| 006 | [MCUboot No Bootable Image](bug_reports/006_mcuboot_no_bootable_image.md) | High | Resolved |
+| 007 | [MCUmgr Silently Disabled](bug_reports/007_mcumgr_silently_disabled.md) | Minor | Resolved |
 
 ## Recommended Workspace Layout
 
