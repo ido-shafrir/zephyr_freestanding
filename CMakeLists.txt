@@ -11,15 +11,24 @@ cmake_minimum_required(VERSION 3.20.0)
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 
 project(
-    EmptyApp
+    example_1
     VERSION 0.1
-    DESCRIPTION "Empty Zephyr application."
+    DESCRIPTION "A simple Zephyr application demonstrating a freestanding configuration."
     LANGUAGES C
 )
+
+target_include_directories(
+        app
+        PRIVATE
+        include
+)
+
 
 # The target "app" is defined in Zephyr's CMake package and is the default target for Zephyr apps.
 target_sources(
     app
     PRIVATE
     src/main.c
+    src/blink_thread.c
+    src/switch_thread.c
 )
