@@ -1,0 +1,7 @@
+tests:
+  zephyr_freestanding.utils:
+    platform_allow:
+      - native_sim
+      - qemu_cortex_m3
+    timeout: 240
+    tags: utils

@@ -11,8 +11,8 @@
  * (declared in rest_api.h).
  *
  * Example endpoints implemented:
- *   POST /api/echo            - echo the JSON payload
- *   GET  /api/ion/<name>/test - return the ion name (wildcard path)
+ *   POST /api/echo               - echo the JSON payload
+ *   GET  /api/device/<name>/info - return the device name (wildcard path)
  */
 
 #endif /* REST_API_ENDPOINTS_H */

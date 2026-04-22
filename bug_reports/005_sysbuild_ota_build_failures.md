@@ -31,7 +31,7 @@ devicetree error: Label 'slot1_partition' appears on
 on /soc/flash-controller@52002000/flash@8000000/partitions/partition@60000
 ```
 
-Build aborted during CMake configure for the ICB-FW application image.
+Build aborted during CMake configure for the application image.
 
 ### Root Cause
 

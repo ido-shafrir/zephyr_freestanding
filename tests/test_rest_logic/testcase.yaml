@@ -1,0 +1,7 @@
+tests:
+  zephyr_freestanding.rest_logic:
+    platform_allow:
+      - native_sim
+      - qemu_cortex_m3
+    timeout: 120
+    tags: rest_logic

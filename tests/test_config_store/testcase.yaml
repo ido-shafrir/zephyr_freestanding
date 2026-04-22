@@ -1,0 +1,9 @@
+tests:
+  zephyr_freestanding.config_store:
+    # config_store needs a real flash backend; QEMU's emulated flash
+    # does not support ZMS properly (factory_reset returns -ENOENT).
+    # Run on native_sim (Linux) only.
+    platform_allow:
+      - native_sim
+    timeout: 120
+    tags: config_store

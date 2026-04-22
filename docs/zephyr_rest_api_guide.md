@@ -51,7 +51,7 @@ CONFIG_NET_BUF_TX_COUNT=32
 CONFIG_LOG=y
 ```
 
-`CONFIG_HTTP_SERVER_RESOURCE_WILDCARD=y` is required if any endpoint uses `*` in its path (e.g. `/api/ion/*/test`).
+`CONFIG_HTTP_SERVER_RESOURCE_WILDCARD=y` is required if any endpoint uses `*` in its path (e.g. `/api/device/*/info`).
 
 ---
 

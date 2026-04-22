@@ -4,6 +4,7 @@
 #include <zephyr/logging/log.h>
 #include <string.h>
 #include "command_uart.h"
+#include "command_parse.h"
 
 LOG_MODULE_REGISTER(uart, LOG_LEVEL_DBG);
 
@@ -94,30 +95,70 @@ static void pong(void)
 static void print_help(void)
 {
     uart_send("Available commands:\r\n");
-    uart_send("  help, h, ?  - Show this help\r\n");
-    uart_send("  ping        - Respond with 'pong'\r\n");
+    uart_send("  help, h, ?          - Show this help\r\n");
+    uart_send("  ping                - Respond with 'pong'\r\n");
+    uart_send("  ip_get              - Show current IP configuration\r\n");
+    uart_send("  ip_set <ip> <m> <g> - Set static IP (addr mask gateway)\r\n");
+    uart_send("  ip_set_dhcp         - Switch to DHCP\r\n");
+    uart_send("  config_dump         - Dump persistent config\r\n");
+    uart_send("  config_factory_reset- Restore factory defaults\r\n");
 }
 
 
 /**
  * @brief Dispatch a received command string to the appropriate handler.
  *
- * Matches the command against known commands and calls the corresponding
- * function. Sends "unknown command" response if no match.
+ * Delegates all string parsing to parse_command() (command_parse.h),
+ * then routes via switch on the command ID.
  *
  * @param cmd Null-terminated command string from the RX buffer.
  */
 static void dispatch_command(const char *cmd)
 {
-    if (strcmp(cmd, "help") == 0 || strcmp(cmd, "h") == 0 || strcmp(cmd, "?") == 0) {
+    struct parsed_command pc;
+
+    if (parse_command(cmd, &pc) != 0) {
+        LOG_ERR("parse_command failed");
+        return;
+    }
+
+    switch (pc.id) {
+    case CMD_HELP:
         print_help();
-    } else if (strcmp(cmd, "ping") == 0) {
+        break;
+    case CMD_PING:
         pong();
-    } else {
+        break;
+    case CMD_IP_GET:
+        /* TODO: implement — call net_get_ip() when networking is enabled */
+        uart_send("ip_get: not yet implemented\r\n");
+        break;
+    case CMD_IP_SET:
+        if (pc.arg1[0] == '\0') {
+            uart_send("Usage: ip_set <address> <mask> <gateway>\r\n");
+        } else {
+            /* TODO: implement — call net_set_ip() when networking is enabled */
+            uart_send("ip_set: not yet implemented\r\n");
+        }
+        break;
+    case CMD_IP_SET_DHCP:
+        /* TODO: implement — call net_set_dhcp() when networking is enabled */
+        uart_send("ip_set_dhcp: not yet implemented\r\n");
+        break;
+    case CMD_CONFIG_DUMP:
+        /* TODO: implement — call config_store_dump() when config store is enabled */
+        uart_send("config_dump: not yet implemented\r\n");
+        break;
+    case CMD_CONFIG_FACTORY_RESET:
+        /* TODO: implement — call config_store_factory_reset() when config store is enabled */
+        uart_send("config_factory_reset: not yet implemented\r\n");
+        break;
+    case CMD_UNKNOWN:
         uart_send("unknown command: ");
         uart_send(cmd);
         uart_send("\r\nType 'help' for available commands.\r\n");
         LOG_WRN("Unknown command: %s", cmd);
+        break;
     }
 }
 

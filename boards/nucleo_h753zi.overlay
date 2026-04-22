@@ -1,38 +1,29 @@
 /*
- * MCUboot board overlay for nucleo_h753zi
+ * Application board overlay for nucleo_h753zi
  *
- * This must match the application's flash partition layout exactly.
- * MCUboot uses these partitions to locate slot0 (primary), slot1
- * (secondary), and scratch areas.
+ * Replaces the default flash partition layout with an MCUboot-compatible
+ * layout that includes a 256 KB storage partition for ZMS persistent
+ * settings. The storage partition sits outside the MCUboot swap area,
+ * so config data survives firmware updates.
  *
- * Applied automatically by sysbuild from:
- *   sysbuild/mcuboot/boards/nucleo_h753zi.overlay
- *
- * Flash layout (must match boards/nucleo_h753zi.overlay):
+ * Flash layout (STM32H753 dual-bank, 2 MB total):
  *   0x08000000  boot_partition     128 KB  (MCUboot)
  *   0x08020000  slot0_partition    768 KB  (primary app image)
  *   0x08100000  slot1_partition    768 KB  (secondary / upgrade image)
  *   0x081C0000  scratch_partition  128 KB  (MCUboot swap scratch)
  *   0x081E0000  storage_partition  256 KB  (ZMS persistent settings)
+ *                                  -------
+ *                                  2048 KB total
+ *
+ * This overlay must match sysbuild/mcuboot/boards/nucleo_h753zi.overlay.
  */
-
-/*
- * Link MCUboot itself to the boot partition (0x08000000), not slot0.
- * The base board DTS has: chosen { zephyr,code-partition = &slot0_partition; }
- * which would put MCUboot at 0x08020000 — wrong. MCUboot lives at 0x08000000.
- */
-/ {
-    chosen {
-        zephyr,code-partition = &boot_partition;
-    };
-};
 
 /* Delete the base board's default partition nodes */
 &flash0 {
     partitions {
-        /delete-node/ partition@20000;  /* old slot0: 256 KB */
-        /delete-node/ partition@60000;  /* old slot1: 384 KB */
-        /delete-node/ partition@c0000;  /* old storage: 256 KB */
+        /delete-node/ partition@20000;  /* old slot0 */
+        /delete-node/ partition@60000;  /* old slot1 */
+        /delete-node/ partition@c0000;  /* old storage */
 
         /* Primary app image: 768 KB (6 x 128 KB sectors) */
         slot0_partition: partition@20000 {
@@ -57,5 +48,12 @@
             label = "storage";
             reg = <0x001E0000 DT_SIZE_K(256)>;
         };
+    };
+};
+
+/* Point the settings subsystem at the storage partition */
+/ {
+    chosen {
+        zephyr,settings-partition = &storage_partition;
     };
 };

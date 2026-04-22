@@ -37,10 +37,11 @@
  * Max 32 modules (limited by atomic_t width).
  */
 enum ota_module {
-    OTA_MODULE_NET,       /**< Network — ready after interface up and DHCP started */
-    OTA_MODULE_UART,      /**< Command UART — ready after IRQ enabled */
-    OTA_MODULE_REST_API,  /**< REST API — ready after HTTP server started */
-    OTA_MODULE_COUNT      /**< Sentinel — must be last. */
+    OTA_MODULE_NET,          /**< Network — ready after interface up and DHCP started */
+    OTA_MODULE_UART,         /**< Command UART — ready after IRQ enabled */
+    OTA_MODULE_REST_API,     /**< REST API — ready after HTTP server started */
+    OTA_MODULE_CONFIG_STORE, /**< Config store — ready after settings loaded */
+    OTA_MODULE_COUNT         /**< Sentinel — must be last. */
 };
 
 /* ---------- Thread resources (defined in ota.c) ---------- */

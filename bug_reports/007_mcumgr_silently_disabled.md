@@ -66,7 +66,7 @@ the resolved `.config` file:
 
 ```bash
 # Check: is MCUMGR in the final config?
-Select-String -Path "build/ICB-FW/zephyr/.config" -Pattern "MCUMGR"
+Select-String -Path "build/app/zephyr/.config" -Pattern "MCUMGR"
 # Result: only "# CONFIG_UART_CONSOLE_MCUMGR is not set" — no CONFIG_MCUMGR=y
 ```
 
@@ -101,7 +101,7 @@ hello
 
 1. **Always verify the resolved `.config` after adding Kconfig options.**
    Zephyr silently drops options with unmet dependencies. Check
-   `build/ICB-FW/zephyr/.config` to confirm your settings took effect.
+   `build/app/zephyr/.config` to confirm your settings took effect.
 
 2. **MCUmgr requires ZCBOR.** SMP uses CBOR encoding for all messages.
    This dependency is declared in Kconfig but easy to miss since ZCBOR

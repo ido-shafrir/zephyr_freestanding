@@ -1,4 +1,5 @@
 .venv/
 external
 **/build*/
+twister-out/
 .vscode/
