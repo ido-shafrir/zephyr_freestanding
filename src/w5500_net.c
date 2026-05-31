@@ -7,6 +7,8 @@
 #include <zephyr/net/dhcpv4.h>
 #include <zephyr/logging/log.h>
 #include "w5500_net.h"
+#include "config_store.h"
+#include "time_service.h"
 
 LOG_MODULE_REGISTER(w5500_net, LOG_LEVEL_DBG);
 
@@ -18,14 +20,54 @@ struct k_thread net_thread_data;
 static struct net_mgmt_event_callback dhcp_cb;
 
 /**
+ * @brief Common post-bind handling for both DHCP and static-IP paths.
+ *
+ * Logs the bound address/mask/gateway and kicks the time-service sync.
+ * Called from dhcp_handler() after a DHCP lease and from init_net()
+ * immediately after a successful static-IP apply.
+ *
+ * @param iface  The network interface that just got an IPv4 address.
+ * @param source "DHCP" or "static" — used in log messages.
+ */
+static void on_ip_bound(struct net_if *iface, const char *source)
+{
+    char addr_str[NET_IPV4_ADDR_LEN] = "(none)";
+    char mask_str[NET_IPV4_ADDR_LEN] = "(none)";
+    char gw_str[NET_IPV4_ADDR_LEN]   = "(none)";
+
+    if (iface->config.ip.ipv4 != NULL) {
+        for (int i = 0; i < NET_IF_MAX_IPV4_ADDR; i++) {
+            struct net_if_addr *a = &iface->config.ip.ipv4->unicast[i].ipv4;
+
+            if (a->is_used) {
+                net_addr_ntop(AF_INET, &a->address.in_addr,
+                              addr_str, sizeof(addr_str));
+                net_addr_ntop(AF_INET,
+                              &iface->config.ip.ipv4->unicast[i].netmask,
+                              mask_str, sizeof(mask_str));
+                break;
+            }
+        }
+        net_addr_ntop(AF_INET, &iface->config.ip.ipv4->gw,
+                      gw_str, sizeof(gw_str));
+    }
+
+    LOG_INF("========================================");
+    LOG_INF("  IPv4 bound (%s)", source);
+    LOG_INF("  Address: %s", addr_str);
+    LOG_INF("  Netmask: %s", mask_str);
+    LOG_INF("  Gateway: %s", gw_str);
+    LOG_INF("========================================");
+
+    /* Trigger time sync now that IP is up */
+    time_service_sync();
+}
+
+/**
  * @brief Net management callback for DHCP bound events.
  *
  * Called by Zephyr's net_mgmt when a DHCP lease is acquired.
- * Logs the assigned IPv4 address, netmask, and gateway.
- *
- * @param cb    Pointer to the event callback structure.
- * @param mgmt_event The management event that triggered the callback.
- * @param iface The network interface that received the DHCP lease.
+ * Delegates to on_ip_bound() for the common post-bind work.
  */
 static void dhcp_handler(struct net_mgmt_event_callback *cb,
                          uint64_t mgmt_event,
@@ -35,32 +77,12 @@ static void dhcp_handler(struct net_mgmt_event_callback *cb,
         return;
     }
 
-    char addr_str[NET_IPV4_ADDR_LEN];
-    char mask_str[NET_IPV4_ADDR_LEN];
-    char gw_str[NET_IPV4_ADDR_LEN];
+    char dhcp_srv_str[NET_IPV4_ADDR_LEN];
+    net_addr_ntop(AF_INET, &iface->config.dhcpv4.server_id,
+                  dhcp_srv_str, sizeof(dhcp_srv_str));
+    LOG_INF("DHCP server: %s", dhcp_srv_str);
 
-    for (int i = 0; i < NET_IF_MAX_IPV4_ADDR; i++) {
-        struct net_if_addr *a = &iface->config.ip.ipv4->unicast[i].ipv4;
-
-        if (a->is_used) {
-            net_addr_ntop(AF_INET, &a->address.in_addr,
-                          addr_str, sizeof(addr_str));
-            net_addr_ntop(AF_INET,
-                          &iface->config.ip.ipv4->unicast[i].netmask,
-                          mask_str, sizeof(mask_str));
-            break;
-        }
-    }
-
-    net_addr_ntop(AF_INET, &iface->config.ip.ipv4->gw,
-                  gw_str, sizeof(gw_str));
-
-    LOG_INF("========================================");
-    LOG_INF("  DHCP lease acquired");
-    LOG_INF("  Address: %s", addr_str);
-    LOG_INF("  Netmask: %s", mask_str);
-    LOG_INF("  Gateway: %s", gw_str);
-    LOG_INF("========================================");
+    on_ip_bound(iface, "DHCP");
 }
 
 /**
@@ -157,14 +179,55 @@ static int init_net(void)
     }
 
     /*
-     * Always start DHCP regardless of current link state.
+     * ── Apply network configuration from config_store ──
+     *
+     * If a static IP is persisted, apply it directly.
+     * Otherwise fall through to DHCP.
+     */
+    char ip_str[CONFIG_STORE_IP_ADDR_MAX_LEN]   = "";
+    char mask_str2[CONFIG_STORE_IP_ADDR_MAX_LEN] = "";
+    char gw_str2[CONFIG_STORE_IP_ADDR_MAX_LEN]   = "";
+
+    (void)config_store_get_ip_address(ip_str, sizeof(ip_str));
+    (void)config_store_get_ip_mask(mask_str2, sizeof(mask_str2));
+    (void)config_store_get_ip_gateway(gw_str2, sizeof(gw_str2));
+
+    if (ip_str[0] != '\0') {
+        struct net_ipv4_config cfg = {0};
+
+        if (net_addr_pton(AF_INET, ip_str, &cfg.addr) < 0) {
+            LOG_ERR("Stored ipAddress \"%s\" invalid — falling back to DHCP",
+                    ip_str);
+            goto start_dhcp;
+        }
+        if (mask_str2[0] == '\0' ||
+            net_addr_pton(AF_INET, mask_str2, &cfg.netmask) < 0) {
+            LOG_WRN("Stored ipMask invalid/empty — defaulting to 255.255.255.0");
+            (void)net_addr_pton(AF_INET, "255.255.255.0", &cfg.netmask);
+        }
+        if (gw_str2[0] != '\0') {
+            if (net_addr_pton(AF_INET, gw_str2, &cfg.gw) < 0) {
+                LOG_WRN("Stored ipDefaultGateway invalid — using 0.0.0.0");
+            }
+        }
+
+        LOG_INF("Applying static IPv4: %s/%s gw=%s",
+                ip_str, mask_str2, gw_str2[0] ? gw_str2 : "(none)");
+
+        int rc = net_set_ip(&cfg);
+        if (rc < 0) {
+            LOG_ERR("net_set_ip() failed: %d — falling back to DHCP", rc);
+            goto start_dhcp;
+        }
+        on_ip_bound(iface, "static");
+        return 0;
+    }
+
+start_dhcp:
+    /*
+     * Start DHCP regardless of current link state.
      * Zephyr's DHCP client handles IF_UP/IF_DOWN events internally
      * and will send DISCOVER once the link is established.
-     *
-     * BUG FIX: Previously, DHCP was only started when the interface
-     * already had an IPv4 config. If the cable was unplugged at boot,
-     * DHCP was never started and the device stayed unconfigured even
-     * after the cable was plugged in. See bug_reports/001.
      */
     LOG_INF("Starting DHCP client...");
     net_dhcpv4_start(iface);
@@ -346,4 +409,23 @@ int net_get_ip(struct net_ipv4_config *cfg)
     }
 
     return -ENOENT;
+}
+
+bool net_is_dhcp(void)
+{
+    struct net_if *iface = net_if_get_default();
+
+    if (iface == NULL || iface->config.ip.ipv4 == NULL) {
+        return false;
+    }
+
+    for (int i = 0; i < NET_IF_MAX_IPV4_ADDR; i++) {
+        struct net_if_addr *addr = &iface->config.ip.ipv4->unicast[i].ipv4;
+
+        if (addr->is_used) {
+            return addr->addr_type != NET_ADDR_MANUAL;
+        }
+    }
+
+    return false;
 }

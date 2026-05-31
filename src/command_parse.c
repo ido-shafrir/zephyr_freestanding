@@ -73,6 +73,28 @@ int parse_command(const char *input, struct parsed_command *out)
         out->id = CMD_CONFIG_DUMP;
     } else if (strcmp(input, "config_factory_reset") == 0) {
         out->id = CMD_CONFIG_FACTORY_RESET;
+    } else if (strncmp(input, "event_log", 9) == 0 &&
+               (input[9] == '\0' || input[9] == ' ')) {
+        out->id = CMD_EVENT_LOG;
+        if (input[9] == ' ') {
+            strncpy(out->arg1, input + 10, CMD_ARG_MAX_LEN - 1);
+        }
+    } else if (strncmp(input, "log_level_set ", 14) == 0) {
+        out->id = CMD_LOG_LEVEL_SET;
+        strncpy(out->arg1, input + 14, CMD_ARG_MAX_LEN - 1);
+    } else if (strcmp(input, "log_level_set") == 0) {
+        out->id = CMD_LOG_LEVEL_SET;
+    } else if (strcmp(input, "log_drop") == 0) {
+        out->id = CMD_LOG_DROP;
+    } else if (strcmp(input, "time_get") == 0) {
+        out->id = CMD_TIME_GET;
+    } else if (strncmp(input, "time_set ", 9) == 0) {
+        out->id = CMD_TIME_SET;
+        strncpy(out->arg1, input + 9, CMD_ARG_MAX_LEN - 1);
+    } else if (strcmp(input, "time_set") == 0) {
+        out->id = CMD_TIME_SET;
+    } else if (strcmp(input, "time_sync") == 0) {
+        out->id = CMD_TIME_SYNC;
     } else {
         out->id = CMD_UNKNOWN;
     }

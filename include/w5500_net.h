@@ -11,6 +11,7 @@
 
 #include <zephyr/kernel.h>
 #include <zephyr/net/net_ip.h>
+#include <stdbool.h>
 
 /* ---------- Thread configuration ---------- */
 #define NET_STACK_SIZE 2048
@@ -69,5 +70,17 @@ int net_set_dhcp(void);
  * @return 0 on success, -ENODEV if no interface, -ENOENT if no address.
  */
 int net_get_ip(struct net_ipv4_config *cfg);
+
+/**
+ * @brief Check whether the current IPv4 address was obtained via DHCP.
+ *
+ * Inspects the address-type metadata on the default interface's first
+ * in-use IPv4 unicast address.  An address-type other than NET_ADDR_MANUAL
+ * (e.g. NET_ADDR_DHCP) is reported as DHCP.
+ *
+ * @return true if the active address came from DHCP, false otherwise
+ *         (no interface, no address, or address was set statically).
+ */
+bool net_is_dhcp(void);
 
 #endif /* W5500_NET_H */

@@ -1,0 +1,13 @@
+/* Overlay for qemu_x86 — add an event_log_partition to the flash simulator.
+ * Deliberately small (3 KB = 3 × 1024-byte sectors) so rotation tests
+ * trigger quickly: 2 usable sectors + 1 scratch.
+ */
+
+&flash_sim0 {
+	partitions {
+		event_log_partition: partition@41000 {
+			label = "event-log";
+			reg = <0x00041000 0x00000C00>; /* 3 KB */
+		};
+	};
+};

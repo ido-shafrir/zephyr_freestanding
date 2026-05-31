@@ -1,0 +1,7 @@
+tests:
+  app.time_service:
+    platform_allow:
+      - native_sim
+      - qemu_x86
+    tags: time_service
+    timeout: 240

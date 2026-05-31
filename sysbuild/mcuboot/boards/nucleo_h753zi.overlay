@@ -9,11 +9,12 @@
  *   sysbuild/mcuboot/boards/nucleo_h753zi.overlay
  *
  * Flash layout (must match boards/nucleo_h753zi.overlay):
- *   0x08000000  boot_partition     128 KB  (MCUboot)
- *   0x08020000  slot0_partition    768 KB  (primary app image)
- *   0x08100000  slot1_partition    768 KB  (secondary / upgrade image)
- *   0x081C0000  scratch_partition  128 KB  (MCUboot swap scratch)
- *   0x081E0000  storage_partition  256 KB  (ZMS persistent settings)
+ *   0x08000000  boot_partition       128 KB  (MCUboot)
+ *   0x08020000  slot0_partition      640 KB  (primary app image)
+ *   0x080C0000  event_log_partition  256 KB  (FCB ring, app-only)
+ *   0x08100000  slot1_partition      640 KB  (secondary / upgrade image)
+ *   0x081A0000  scratch_partition    128 KB  (MCUboot swap scratch)
+ *   0x081C0000  storage_partition    256 KB  (ZMS persistent settings)
  */
 
 /*
@@ -34,28 +35,34 @@
         /delete-node/ partition@60000;  /* old slot1: 384 KB */
         /delete-node/ partition@c0000;  /* old storage: 256 KB */
 
-        /* Primary app image: 768 KB (6 x 128 KB sectors) */
+        /* Primary app image: 640 KB (5 x 128 KB sectors) */
         slot0_partition: partition@20000 {
             label = "image-0";
-            reg = <0x00020000 DT_SIZE_K(768)>;
+            reg = <0x00020000 DT_SIZE_K(640)>;
         };
 
-        /* Secondary / upgrade image: 768 KB (bank 2 start) */
+        /* Event log FCB ring: 256 KB (tail of bank 1) */
+        event_log_partition: partition@c0000 {
+            label = "event-log";
+            reg = <0x000C0000 DT_SIZE_K(256)>;
+        };
+
+        /* Secondary / upgrade image: 640 KB (bank 2 start) */
         slot1_partition: partition@100000 {
             label = "image-1";
-            reg = <0x00100000 DT_SIZE_K(768)>;
+            reg = <0x00100000 DT_SIZE_K(640)>;
         };
 
         /* MCUboot swap scratch: 128 KB */
-        scratch_partition: partition@1c0000 {
+        scratch_partition: partition@1a0000 {
             label = "image-scratch";
-            reg = <0x001C0000 DT_SIZE_K(128)>;
+            reg = <0x001A0000 DT_SIZE_K(128)>;
         };
 
         /* ZMS persistent settings: 256 KB (outside MCUboot swap area) */
-        storage_partition: partition@1e0000 {
+        storage_partition: partition@1c0000 {
             label = "storage";
-            reg = <0x001E0000 DT_SIZE_K(256)>;
+            reg = <0x001C0000 DT_SIZE_K(256)>;
         };
     };
 };

@@ -1,0 +1,7 @@
+tests:
+  app.event_log:
+    platform_allow:
+      - native_sim
+      - qemu_x86
+    tags: event_log
+    timeout: 180

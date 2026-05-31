@@ -12,7 +12,7 @@ Zephyr supports three application types:
 | **Workspace** | The application sits alongside the Zephyr source in a shared west workspace, managed by a top-level manifest (e.g. `zephyrproject/my-app/`). |
 | **Freestanding** | The application lives in its own independent directory and pulls in Zephyr as an external dependency via its own `west.yaml` manifest. This is the recommended layout for production projects. |
 
-This project uses the **freestanding** layout. It contains its own west manifest (`west.yaml`) that pins a specific Zephyr release, making the build fully self-contained and reproducible.
+This project uses the **freestanding** layout. It contains its own west manifest (`west.yml`) that pins a specific Zephyr release, making the build fully self-contained and reproducible.
 
 ## Prerequisites
 
@@ -32,7 +32,7 @@ From the directory **containing** this project folder, run:
 west init -l zephyr_freestanding
 ```
 
-This tells west to use the `west.yaml` manifest in this project as the workspace manifest.
+This tells west to use the `west.yml` manifest in this project as the workspace manifest.
 
 ### 2. Update (fetch Zephyr and its dependencies)
 
@@ -101,32 +101,35 @@ west flash
 
 ```
 zephyr_freestanding/
-├── .env             # Environment variables (toolchain, board, paths)
-├── CMakeLists.txt   # Build system entry point
-├── prj.conf         # Kconfig project configuration
-├── west.yaml        # West manifest (pins Zephyr v4.0.0)
+├── .env                  # Environment variables (toolchain, board, paths)
+├── CMakeLists.txt        # Build system entry point
+├── prj.conf              # Kconfig project configuration
+├── west.yml              # West manifest (pins Zephyr release)
+├── sysbuild.conf         # Sysbuild config (MCUboot etc.)
+├── sections-rom.ld       # Linker script fragment
+├── VERSION               # APP_VERSION_STRING source
 ├── README.md
-├── bug_reports/     # Bug reports from downstream (forked) projects
-│   ├── README.md
-│   ├── 001_w5500_dhcp_failure.md
-│   └── 002_uart_double_command_dispatch.md
-└── src/
-    └── main.c       # Application entry point
+├── boards/               # Per-board overlays (DTS partition layout)
+├── sysbuild/             # MCUboot per-board overlays + sysbuild Kconfig
+├── include/              # Public headers for optional modules
+├── src/                  # Source files (most are dormant — see below)
+│   └── main.c            # Application entry point (blinky demo)
+├── docs/                 # Per-feature deep-dive guides + procedures
+├── tests/                # ztest suites for the pure-logic modules
+└── bug_reports/          # Lessons learned from downstream forks
 ```
 
-## Bug Reports
+### Dormant-module pattern
 
-The [`bug_reports/`](bug_reports/) directory contains bug reports collected from downstream (forked) projects that build on this repository. Each report documents symptoms, root cause, and fix so that upstream users can avoid the same pitfalls.
+Most source files in `src/` and headers in `include/` are **not** compiled
+by default. They are a curated menu of optional features (networking,
+REST API, OTA, persistent config, event log, time service, …). To enable
+a feature you (1) add the source file(s) to `CMakeLists.txt`, (2) uncomment
+the matching block in `prj.conf`, and where applicable (3) tweak the
+board overlay.
 
-| # | Title | Severity | Status |
-|---|-------|----------|--------|
-| 001 | [W5500 DHCP Failure — No Lease Acquired](bug_reports/001_w5500_dhcp_failure.md) | High | Resolved |
-| 002 | [UART Commands Dispatched Twice](bug_reports/002_uart_double_command_dispatch.md) | Low | Resolved |
-| 003 | [HTTP POST Body Missing](bug_reports/003_http_post_body_missing.md) | High | Resolved |
-| 004 | [HTTP Unreachable After IP Change](bug_reports/004_http_unreachable_after_ip_change.md) | High | Resolved |
-| 005 | [Sysbuild OTA Build Failures](bug_reports/005_sysbuild_ota_build_failures.md) | Medium | Resolved |
-| 006 | [MCUboot No Bootable Image](bug_reports/006_mcuboot_no_bootable_image.md) | High | Resolved |
-| 007 | [MCUmgr Silently Disabled](bug_reports/007_mcumgr_silently_disabled.md) | Minor | Resolved |
+See [docs/feature_selection_guide.md](docs/feature_selection_guide.md)
+for the per-feature recipe and dependency map.
 
 ## Recommended Workspace Layout
 

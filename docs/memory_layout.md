@@ -16,21 +16,21 @@ DTS offsets are relative to the flash base (`0x08000000`).
  Flash Base: 0x08000000
  ┌─────────────────────────────────────────────────────────────┐
  │                        Bank 1 (1 MB)                        │
- ├──────────────┬──────────────────────────────┬───────────────┤
- │ boot (128K)  │        slot0 (768K)          │ slot1 start   │
- │ MCUboot      │        Primary App           │ (128K here)   │
- │ 0x00000      │        0x20000               │ 0xE0000       │
- │  – 0x1FFFF   │         – 0xDFFFF            │  – 0xFFFFF    │
- │ [1 sector]   │        [6 sectors]           │ [1 sector]    │
- ├──────────────┴──────────────────────────────┴───────────────┤
+ ├──────────────┬──────────────────────────┬───────────────────┤
+ │ boot (128K)  │       slot0 (640K)       │ event-log (256K)  │
+ │ MCUboot      │       Primary App        │ FCB ring          │
+ │ 0x00000      │       0x20000            │ 0xC0000           │
+ │  – 0x1FFFF   │        – 0xBFFFF         │  – 0xFFFFF        │
+ │ [1 sector]   │       [5 sectors]        │ [2 sectors]       │
+ ├──────────────┴──────────────────────────┴───────────────────┤
  │                        Bank 2 (1 MB)                        │
- ├────────────────────────────┬──────────┬─────────────────────┤
- │  slot1 cont. (640K)        │scratch   │  storage (256K)     │
- │  Upgrade Image             │(128K)    │  ZMS Settings       │
- │  0x100000                  │0x1A0000  │  0x1C0000           │
- │   – 0x19FFFF               │–0x1BFFFF │   – 0x1FFFFF        │
- │  [5 sectors]               │[1 sector]│  [2 sectors]        │
- └────────────────────────────┴──────────┴─────────────────────┘
+ ├──────────────────────────┬──────────┬───────────────────────┤
+ │       slot1 (640K)       │ scratch  │   storage (256K)      │
+ │       Upgrade Image      │ (128K)   │   ZMS Settings        │
+ │       0x100000           │ 0x1A0000 │   0x1C0000            │
+ │        – 0x19FFFF        │–0x1BFFFF │    – 0x1FFFFF         │
+ │       [5 sectors]        │[1 sector]│   [2 sectors]         │
+ └──────────────────────────┴──────────┴───────────────────────┘
 ```
 
 ## Partition Table
@@ -38,8 +38,9 @@ DTS offsets are relative to the flash base (`0x08000000`).
 | Partition | DTS Label | Offset | End | Size | Sectors | Purpose |
 |-----------|-----------|--------|-----|------|---------|---------|
 | `boot_partition` | `mcuboot` | `0x00000` | `0x1FFFF` | 128 KB | 1 | MCUboot bootloader |
-| `slot0_partition` | `image-0` | `0x20000` | `0xDFFFF` | 768 KB | 6 | Primary application image |
-| `slot1_partition` | `image-1` | `0xE0000` | `0x19FFFF` | 768 KB | 6 | Upgrade image (OTA target) |
+| `slot0_partition` | `image-0` | `0x20000` | `0xBFFFF` | 640 KB | 5 | Primary application image |
+| `event_log_partition` | `event-log` | `0xC0000` | `0xFFFFF` | 256 KB | 2 | FCB event ring (app-only) |
+| `slot1_partition` | `image-1` | `0x100000` | `0x19FFFF` | 640 KB | 5 | Upgrade image (OTA target) |
 | `scratch_partition` | `image-scratch` | `0x1A0000` | `0x1BFFFF` | 128 KB | 1 | MCUboot swap scratch |
 | `storage_partition` | `storage` | `0x1C0000` | `0x1FFFFF` | 256 KB | 2 | ZMS persistent settings |
 
@@ -47,16 +48,33 @@ DTS offsets are relative to the flash base (`0x08000000`).
 
 ## Design Rationale
 
-### Slot sizing (768 KB)
+### Slot sizing (640 KB)
 
-The application image is currently small (~20–160 KB signed). 768 KB provides
-ample headroom for firmware growth. Both slots must be the same size for
-MCUboot's swap algorithm.
+Both slots are 640 KB (5 sectors). The application image is currently small
+(~20–160 KB signed) so 640 KB still provides ~4× headroom for growth. Both
+slots **must** be the same size for MCUboot's swap algorithm.
+
+### Why slot1 starts at 0x100000 (bank 2)
+
+Slot1 is deliberately aligned to the bank-2 boundary so MCUboot's swap
+operations stay within a single bank's erase domain. This avoids cross-bank
+quirks and keeps the OTA upgrade path simple.
+
+### Event-log placement (tail of bank 1)
+
+`event_log_partition` (256 KB / 2 sectors) sits at `0xC0000`–`0xFFFFF`,
+filling the gap between slot0 and the bank-2 boundary. It is a dedicated
+flash region used only by `src/event_log.c` (Zephyr FCB ring buffer).
+Like the storage partition, it is **outside** MCUboot's swap area —
+event history survives firmware updates.
+
+If your project does not need the event log, you can either leave the
+partition unused or reclaim it by extending slot0 to 896 KB (7 sectors).
 
 ### Storage placement (end of flash)
 
 The storage partition is placed at `0x1C0000`–`0x1FFFFF` — the last 2 sectors
-of flash (bank 2). This position is critical:
+of flash. This position is critical:
 
 - **Outside slot0/slot1:** MCUboot only swaps data within `slot0_partition`
   and `slot1_partition` (using `scratch_partition`). The storage partition
@@ -64,12 +82,6 @@ of flash (bank 2). This position is critical:
 - **Survives OTA updates:** All ZMS settings persist across firmware updates.
 - **Survives MCUboot revert:** If a new firmware fails the health check and
   MCUboot reverts to the old image, settings are still intact.
-
-### Slot1 crosses the bank boundary
-
-slot1 starts at `0xE0000` (last sector of bank 1) and continues into bank 2
-up to `0x19FFFF`. The STM32H753 flash driver handles cross-bank access
-transparently — MCUboot sees a flat 2 MB address space.
 
 ### Scratch sizing (128 KB)
 
@@ -80,13 +92,13 @@ slot0, copies scratch to slot1. One sector is sufficient.
 ### MCUboot sector count
 
 `CONFIG_BOOT_MAX_IMG_SECTORS=16` in `sysbuild/mcuboot.conf`. Each slot has
-6 sectors; 16 provides headroom if the layout is adjusted later.
+5 sectors; 16 provides headroom if the layout is adjusted later.
 
 ## DTS Definition
 
 The partition layout is defined in two overlays that **must match**:
 
-- [`boards/nucleo_h753zi.overlay`](../boards/nucleo_h753zi.overlay) — App overlay (includes storage + `chosen` node)
+- [`boards/nucleo_h753zi.overlay`](../boards/nucleo_h753zi.overlay) — App overlay (includes event-log + storage + `chosen` node)
 - [`sysbuild/mcuboot/boards/nucleo_h753zi.overlay`](../sysbuild/mcuboot/boards/nucleo_h753zi.overlay) — MCUboot overlay (matching slots + scratch)
 
 See the [OTA Guide](zephyr_ota_guide.md) for details on why two overlays
@@ -96,13 +108,15 @@ are needed.
 
 ```
 MCUboot reads:   boot_partition, slot0_partition, slot1_partition, scratch_partition
-MCUboot ignores: storage_partition
+MCUboot ignores: event_log_partition, storage_partition
 
 OTA swap area:   slot0 ↔ slot1 (via scratch)
-Settings area:   storage_partition (at end of flash, untouched by swap)
+App-only areas:  event_log_partition, storage_partition (untouched by swap)
 ```
 
 After an OTA update:
 1. MCUboot swaps slot0 ↔ slot1
 2. New firmware boots and loads settings from `storage_partition` — unchanged
-3. If OTA health check fails, MCUboot reverts the swap — settings still unchanged
+3. Event log in `event_log_partition` — unchanged (history preserved)
+4. If OTA health check fails, MCUboot reverts the swap — both app-only
+   regions still unchanged

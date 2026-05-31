@@ -1,0 +1,14 @@
+/* Overlay for qemu_cortex_m3 — add an event_log_partition to the simulated flash */
+
+&flash0 {
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		event_log_partition: partition@30000 {
+			label = "event-log";
+			reg = <0x30000 0x10000>; /* 64 KB at offset 192 KB */
+		};
+	};
+};

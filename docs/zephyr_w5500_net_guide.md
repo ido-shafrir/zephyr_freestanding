@@ -396,3 +396,53 @@ See [bug_reports/001_w5500_dhcp_failure.md](../bug_reports/001_w5500_dhcp_failur
 | No MAC address logged | SPI communication failing — check wiring and `spi-max-frequency` |
 | ARP works but no TCP | `CONFIG_NET_TCP=y` in prj.conf? Buffer counts sufficient? |
 | Intermittent SPI errors | Lower `spi-max-frequency` (try 1 MHz on long wires) |
+
+## Optional: Link-State and DHCP-Event Hooks
+
+The template ships `w5500_net.c` with a single `net_mgmt` callback for `NET_EVENT_IPV4_DHCP_BOUND` (logs the lease). Two more hook points are commonly useful in real applications and are easy to add in the same style:
+
+- `NET_EVENT_L4_CONNECTED` / `NET_EVENT_L4_DISCONNECTED` \u2014 link-layer carrier up/down (cable plugged/unplugged or peer link failure).
+- `NET_EVENT_IPV4_DHCP_BOUND` \u2014 already wired; useful additional payloads include the DHCP server IP, lease time, and DNS list.
+
+Typical use-cases:
+
+- **Event log entries** \u2014 emit a NETWORK event every time the link goes up/down or DHCP rebinds, so the long-term history shows connectivity issues at a glance.
+- **Trigger a re-sync** \u2014 give a semaphore the time-service thread is waiting on, so SNTP runs immediately on every fresh DHCP lease (instead of waiting for the next periodic tick).
+- **Gate OTA readiness** \u2014 only call `ota_report_module_ready(OTA_MODULE_NET)` after the link is actually carrying traffic.
+
+### Sketch
+
+```c
+static struct net_mgmt_event_callback carrier_cb;
+
+static void carrier_handler(struct net_mgmt_event_callback *cb,
+                            uint64_t mgmt_event, struct net_if *iface)
+{
+    if (mgmt_event == NET_EVENT_L4_CONNECTED) {
+        LOG_INF("link up");
+        /* event_log_write(EVENT_SEV_INFO, EVENT_TYPE_NETWORK, "link up"); */
+        /* time_service_sync(); */
+    } else if (mgmt_event == NET_EVENT_L4_DISCONNECTED) {
+        LOG_INF("link down");
+        /* event_log_write(EVENT_SEV_WARN, EVENT_TYPE_NETWORK, "link down"); */
+    }
+}
+
+/* Inside init_net(), before net_dhcpv4_start(): */
+net_mgmt_init_event_callback(&carrier_cb, carrier_handler,
+                             NET_EVENT_L4_CONNECTED |
+                             NET_EVENT_L4_DISCONNECTED);
+net_mgmt_add_event_callback(&carrier_cb);
+```
+
+The template intentionally ships **without** these hooks active so projects that don't need them stay free of dependencies on `event_log` or `time_service`. Paste the snippet above into `src/w5500_net.c` when you do need them.
+
+### Querying the active address type
+
+When you want to know whether the running address came from DHCP or was set statically (e.g. for a REST status endpoint, or to skip DHCP-renewal logic on a static config), use:
+
+```c
+bool dhcp = net_is_dhcp();
+```
+
+The helper is implemented in `w5500_net.c` and inspects the address-type metadata Zephyr stores on the active unicast address. No flags or shadow state required.

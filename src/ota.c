@@ -22,6 +22,7 @@
 #include <zephyr/sys/atomic.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/dfu/mcuboot.h>
+#include <app_version.h>
 #include "ota.h"
 
 LOG_MODULE_REGISTER(ota, LOG_LEVEL_DBG);
@@ -36,13 +37,20 @@ static atomic_t module_status = ATOMIC_INIT(0);
 /**
  * @brief Human-readable names for each module, used in log messages.
  *
- * Update this array when adding/removing entries in enum ota_module.
+ * Must have one entry per value in the ota_module enum (ota.h).
+ * The BUILD_ASSERT below catches mismatches at compile time
+ * (see bug_reports/018_ota_module_names_missing_entry.md).
  */
 static const char *const module_names[] = {
-    [OTA_MODULE_NET]      = "net",
-    [OTA_MODULE_UART]     = "command_uart",
-    [OTA_MODULE_REST_API] = "rest_api",
+    [OTA_MODULE_NET]          = "net",
+    [OTA_MODULE_UART]         = "command_uart",
+    [OTA_MODULE_REST_API]     = "rest_api",
+    [OTA_MODULE_CONFIG_STORE] = "config_store",
+    [OTA_MODULE_EVENT_LOG]    = "event_log",
+    [OTA_MODULE_TIME_SERVICE] = "time_service",
 };
+BUILD_ASSERT(ARRAY_SIZE(module_names) == OTA_MODULE_COUNT,
+             "module_names[] must have one entry per ota_module enum value");
 
 /**
  * @brief Count the number of set bits in a value (population count).
@@ -82,6 +90,11 @@ void ota_report_module_ready(enum ota_module mod)
             module_names[mod],
             popcount(atomic_get(&module_status)),
             OTA_MODULE_COUNT);
+}
+
+const char *ota_get_fw_version(void)
+{
+    return APP_VERSION_STRING;
 }
 
 /**

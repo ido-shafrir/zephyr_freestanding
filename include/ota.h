@@ -41,8 +41,22 @@ enum ota_module {
     OTA_MODULE_UART,         /**< Command UART — ready after IRQ enabled */
     OTA_MODULE_REST_API,     /**< REST API — ready after HTTP server started */
     OTA_MODULE_CONFIG_STORE, /**< Config store — ready after settings loaded */
+    OTA_MODULE_EVENT_LOG,    /**< Event log — ready after FCB partition mounted */
+    OTA_MODULE_TIME_SERVICE, /**< Time service — ready after init (sync may follow later) */
     OTA_MODULE_COUNT         /**< Sentinel — must be last. */
 };
+
+/* ---------- Firmware version (defined in ota.c) ---------- */
+
+/**
+ * @brief Get the firmware version string from MCUboot image header.
+ *
+ * Reads the running image's version field. Returns "unknown" if the
+ * version cannot be read (e.g. when not running under MCUboot).
+ *
+ * @return Static string pointer (e.g. "0.1.0+0").
+ */
+const char *ota_get_fw_version(void);
 
 /* ---------- Thread resources (defined in ota.c) ---------- */
 extern struct k_thread ota_thread_data;
